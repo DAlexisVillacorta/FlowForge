@@ -1,0 +1,168 @@
+"use client";
+
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Building2, ArrowRight } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn, getStatusBadgeClasses } from "@/lib/utils";
+import { mockStatements, mockBankAccounts } from "@/lib/mock-data";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatPeriod(start: Date): string {
+  const raw = format(start, "MMMM yyyy", { locale: es });
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+const statusLabels: Record<string, string> = {
+  processing: "Procesando",
+  classified: "Clasificado",
+  reviewing: "En revisión",
+  reconciled: "Conciliado",
+  completed: "Completado",
+};
+
+// ── Statement row ─────────────────────────────────────────────────────────────
+
+interface StatementRowProps {
+  bankName: string;
+  period: string;
+  statementId: string;
+  status: string;
+  matchedCount: number;
+  transactionCount: number;
+  index: number;
+}
+
+function StatementRow({
+  bankName,
+  period,
+  statementId,
+  status,
+  matchedCount,
+  transactionCount,
+  index,
+}: StatementRowProps) {
+  const progressPct = Math.round((matchedCount / transactionCount) * 100);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{
+        duration: 0.35,
+        delay: 0.18 + index * 0.08,
+        ease: [0.25, 0.46, 0.45, 0.94],
+      }}
+    >
+      <Link
+        href={`/transactions?statement=${statementId}`}
+        className="group flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-neutral-50"
+      >
+        {/* Icono banco */}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50">
+          <Building2 className="h-5 w-5 text-primary-600" />
+        </div>
+
+        {/* Info */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm font-semibold text-neutral-900">
+              {bankName} — {period}
+            </p>
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                getStatusBadgeClasses(status),
+              )}
+            >
+              {statusLabels[status] ?? status}
+            </span>
+          </div>
+
+          {/* Barra de progreso */}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPct}%` }}
+                transition={{
+                  duration: 0.7,
+                  delay: 0.35 + index * 0.08,
+                  ease: "easeOut",
+                }}
+                className={cn(
+                  "h-full rounded-full",
+                  progressPct === 100
+                    ? "bg-success-500"
+                    : progressPct >= 70
+                      ? "bg-primary-500"
+                      : "bg-amber-400",
+                )}
+              />
+            </div>
+            <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">
+              {matchedCount}/{transactionCount}
+            </span>
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <ArrowRight className="h-4 w-4 shrink-0 text-neutral-300 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-400" />
+      </Link>
+    </motion.div>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+
+export function RecentStatements() {
+  const statementsWithBank = mockStatements.map((stmt) => {
+    const bank = mockBankAccounts.find((ba) => ba.id === stmt.bankAccountId)!;
+    return { ...stmt, bankName: bank.bankName };
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="rounded-card border border-neutral-200 bg-white shadow-subtle"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+        <div>
+          <h2 className="font-heading text-base font-semibold text-neutral-900">
+            Extractos recientes
+          </h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {statementsWithBank.length} extractos cargados
+          </p>
+        </div>
+        <Link
+          href="/transactions"
+          className="text-xs font-medium text-primary-600 transition-colors hover:text-primary-700"
+        >
+          Ver todos →
+        </Link>
+      </div>
+
+      {/* List */}
+      <div className="divide-y divide-neutral-50 px-2 py-2">
+        {statementsWithBank.map((stmt, i) => (
+          <StatementRow
+            key={stmt.id}
+            bankName={stmt.bankName}
+            period={formatPeriod(stmt.periodStart)}
+            statementId={stmt.id}
+            status={stmt.status}
+            matchedCount={stmt.matchedCount}
+            transactionCount={stmt.transactionCount}
+            index={i}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+}

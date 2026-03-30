@@ -13,6 +13,8 @@ interface SidebarContextValue {
   toggleCollapsed: () => void;
   mobileOpen: boolean;
   setMobileOpen: (open: boolean) => void;
+  darkMode: boolean;
+  toggleDarkMode: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextValue>({
@@ -20,17 +22,33 @@ const SidebarContext = createContext<SidebarContextValue>({
   toggleCollapsed: () => {},
   mobileOpen: false,
   setMobileOpen: () => {},
+  darkMode: false,
+  toggleDarkMode: () => {},
 });
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
 
-  // Leer estado guardado
+  // Leer estado guardado al montar
   useEffect(() => {
-    const stored = localStorage.getItem("ff-sidebar-collapsed");
-    if (stored === "true") setCollapsed(true);
+    const sidebarStored = localStorage.getItem("ff-sidebar-collapsed");
+    if (sidebarStored === "true") setCollapsed(true);
+
+    const darkStored = localStorage.getItem("ff-dark-mode");
+    if (darkStored === "true") setDarkMode(true);
   }, []);
+
+  // Aplicar clase 'dark' al <html>
+  useEffect(() => {
+    const root = document.documentElement;
+    if (darkMode) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [darkMode]);
 
   // Cerrar mobile drawer al redimensionar a desktop
   useEffect(() => {
@@ -49,9 +67,24 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  function toggleDarkMode() {
+    setDarkMode((prev) => {
+      const next = !prev;
+      localStorage.setItem("ff-dark-mode", String(next));
+      return next;
+    });
+  }
+
   return (
     <SidebarContext.Provider
-      value={{ collapsed, toggleCollapsed, mobileOpen, setMobileOpen }}
+      value={{
+        collapsed,
+        toggleCollapsed,
+        mobileOpen,
+        setMobileOpen,
+        darkMode,
+        toggleDarkMode,
+      }}
     >
       {children}
     </SidebarContext.Provider>

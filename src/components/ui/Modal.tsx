@@ -104,7 +104,7 @@ export function Modal({
           />
 
           {/* Modal panel */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex flex-col sm:flex-row sm:items-center sm:justify-center sm:p-4">
             <motion.div
               key="modal-panel"
               ref={modalRef}
@@ -115,7 +115,8 @@ export function Modal({
               exit={{ opacity: 0, y: 8, scale: 0.98 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               className={cn(
-                "relative w-full rounded-card bg-white shadow-modal",
+                "relative w-full bg-white shadow-modal dark:bg-neutral-800",
+                "flex h-full flex-col sm:h-auto sm:rounded-card sm:max-h-[90vh]",
                 sizeStyles[size],
                 className,
               )}
@@ -144,7 +145,7 @@ export function ModalHeader({ title, description, onClose, className }: ModalHea
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 border-b border-neutral-100 px-6 py-5",
+        "flex items-start justify-between gap-4 border-b border-neutral-100 px-6 py-5 dark:border-neutral-700 [&_h2]:dark:text-neutral-100 [&_p]:dark:text-neutral-400",
         className,
       )}
     >

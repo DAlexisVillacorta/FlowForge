@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -205,7 +205,12 @@ function SidebarContent({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { toggleCollapsed } = useSidebar();
+
+  function handleLogout() {
+    router.push("/login");
+  }
 
   return (
     <div
@@ -344,6 +349,7 @@ function SidebarContent({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
+                onClick={handleLogout}
                 className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-600 transition-colors hover:bg-white/5 hover:text-slate-400"
               >
                 <LogOut className="h-3.5 w-3.5" />
