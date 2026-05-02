@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, CreditCard, Building } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
-import { mockBankAccounts } from "@/lib/mock-data";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { SettingsSection, SettingsField, inputCls, selectCls } from "./SettingsUI";
 import type { BankAccount } from "@/lib/types";
-
-// ── Banks list ────────────────────────────────────────────────────────────────
 
 const BANKS = [
   "Banco Galicia",
@@ -24,13 +21,9 @@ const BANKS = [
   "Banco Patagonia",
 ];
 
-// ── CBU formatter ─────────────────────────────────────────────────────────────
-
 function onlyDigits(v: string, max: number) {
   return v.replace(/\D/g, "").slice(0, max);
 }
-
-// ── Account card ──────────────────────────────────────────────────────────────
 
 function AccountCard({
   account,
@@ -88,8 +81,6 @@ function AccountCard({
     </div>
   );
 }
-
-// ── AccountModal ──────────────────────────────────────────────────────────────
 
 interface AccountForm {
   bankName: string;
@@ -226,12 +217,21 @@ function AccountModal({
   );
 }
 
-// ── CuentasBancariasTab ───────────────────────────────────────────────────────
-
 export function CuentasBancariasTab() {
-  const [accounts, setAccounts] = useState<BankAccount[]>(mockBankAccounts);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<BankAccount | null>(null);
+
+  useEffect(() => {
+    fetch("/api/bank-accounts")
+      .then((r) => r.json())
+      .then((data) => {
+        setAccounts(data || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const openAdd = () => {
     setEditing(null);
@@ -243,35 +243,58 @@ export function CuentasBancariasTab() {
     setModalOpen(true);
   };
 
-  const handleSave = (form: {
+  const handleSave = async (form: {
     bankName: string;
     accountNumber: string;
     cbu: string;
     currency: "ARS" | "USD";
   }) => {
     if (editing) {
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.id === editing.id ? { ...a, ...form } : a,
-        ),
-      );
-      toast.success("Cuenta actualizada correctamente");
+      try {
+        await fetch(`/api/bank-accounts/${editing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.id === editing.id ? { ...a, ...form } : a,
+          ),
+        );
+        toast.success("Cuenta actualizada correctamente");
+      } catch {
+        toast.error("Error al actualizar la cuenta");
+      }
     } else {
-      const newAccount: BankAccount = {
-        id: `ba-${Date.now()}`,
-        orgId: "org-1",
-        ...form,
-      };
-      setAccounts((prev) => [...prev, newAccount]);
-      toast.success("Cuenta agregada correctamente");
+      try {
+        const res = await fetch("/api/bank-accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        const newAccount = await res.json();
+        setAccounts((prev) => [...prev, newAccount]);
+        toast.success("Cuenta agregada correctamente");
+      } catch {
+        toast.error("Error al crear la cuenta");
+      }
     }
     setModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
-    toast("Cuenta eliminada", { icon: "🗑️" });
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/bank-accounts?id=${id}`, { method: "DELETE" });
+      setAccounts((prev) => prev.filter((a) => a.id !== id));
+      toast("Cuenta eliminada", { icon: "🗑️" });
+    } catch {
+      toast.error("Error al eliminar la cuenta");
+    }
   };
+
+  if (loading) {
+    return <p className="text-sm text-neutral-400">Cargando cuentas...</p>;
+  }
 
   return (
     <div className="space-y-4">

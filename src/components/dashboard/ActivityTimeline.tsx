@@ -10,10 +10,6 @@ import {
   BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockRecentActivity } from "@/lib/mock-data";
-import type { RecentActivityType } from "@/lib/types";
-
-// ── Configuración por tipo de actividad ───────────────────────────────────────
 
 interface ActivityConfig {
   icon: React.ElementType;
@@ -22,7 +18,7 @@ interface ActivityConfig {
   bgClass: string;
 }
 
-const ACTIVITY_CONFIG: Record<RecentActivityType, ActivityConfig> = {
+const ACTIVITY_CONFIG: Record<string, ActivityConfig> = {
   upload: {
     icon: UploadCloud,
     iconClass: "text-blue-600",
@@ -61,13 +57,11 @@ const ACTIVITY_CONFIG: Record<RecentActivityType, ActivityConfig> = {
   },
 };
 
-// ── Timestamp relativo ────────────────────────────────────────────────────────
+const NOW = new Date();
 
-// Fecha de referencia fija para el mock (30/03/2026 12:00)
-const NOW = new Date("2026-03-30T12:00:00");
-
-function getRelativeTime(date: Date): string {
-  const diffMs = NOW.getTime() - date.getTime();
+function getRelativeTime(date: Date | string): string {
+  const d = new Date(date);
+  const diffMs = NOW.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60_000);
 
   if (diffMins < 2) return "ahora mismo";
@@ -79,78 +73,84 @@ function getRelativeTime(date: Date): string {
   return `hace ${diffDays} días`;
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
+interface ActivityTimelineProps {
+  data?: Array<{
+    id: string;
+    type: string;
+    description: string;
+    timestamp: Date | string;
+    meta?: Record<string, unknown>;
+  }>;
+}
 
-// Mostrar las 8 más recientes
-const RECENT = mockRecentActivity.slice(0, 8);
+export function ActivityTimeline({ data = [] }: ActivityTimelineProps) {
+  const recent = data.slice(0, 8);
 
-export function ActivityTimeline() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.34, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="rounded-card border border-neutral-200 bg-white shadow-subtle"
+      className="rounded-card border border-neutral-200 bg-white shadow-subtle dark:border-white/[0.07] dark:bg-[#161B27] dark:shadow-[0_4px_28px_rgba(0,0,0,0.4)]"
     >
-      {/* Header */}
-      <div className="border-b border-neutral-100 px-5 py-4">
-        <h2 className="font-heading text-base font-semibold text-neutral-900">
+      <div className="border-b border-neutral-100 px-5 py-4 dark:border-white/[0.05]">
+        <h2 className="font-heading text-base font-semibold text-neutral-900 dark:text-slate-100">
           Actividad reciente
         </h2>
-        <p className="mt-0.5 text-xs text-neutral-500">
+        <p className="mt-0.5 text-xs text-neutral-500 dark:text-slate-400">
           Últimas acciones en tu cuenta
         </p>
       </div>
 
-      {/* Timeline */}
       <div className="px-5 py-4">
         <div className="relative space-y-0">
-          {RECENT.map((activity, index) => {
-            const config = ACTIVITY_CONFIG[activity.type];
-            const Icon = config.icon;
-            const isLast = index === RECENT.length - 1;
+          {recent.length === 0 ? (
+            <p className="py-4 text-center text-sm text-neutral-400 dark:text-slate-500">Sin actividad reciente</p>
+          ) : (
+            recent.map((activity, index) => {
+              const config = ACTIVITY_CONFIG[activity.type] ?? ACTIVITY_CONFIG.match_suggested;
+              const Icon = config.icon;
+              const isLast = index === recent.length - 1;
 
-            return (
-              <motion.div
-                key={activity.id}
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{
-                  duration: 0.32,
-                  delay: 0.38 + index * 0.06,
-                  ease: [0.25, 0.46, 0.45, 0.94],
-                }}
-                className="flex gap-3"
-              >
-                {/* Dot + línea vertical */}
-                <div className="flex flex-col items-center">
-                  {/* Icono */}
-                  <div
-                    className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-                      config.bgClass,
+              return (
+                <motion.div
+                  key={activity.id}
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: 0.32,
+                    delay: 0.38 + index * 0.06,
+                    ease: [0.25, 0.46, 0.45, 0.94],
+                  }}
+                  className="flex gap-3"
+                >
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                        config.bgClass,
+                        "dark:bg-opacity-20",
+                      )}
+                    >
+                      <Icon className={cn("h-3.5 w-3.5", config.iconClass)} />
+                    </div>
+                    {!isLast && (
+                      <div className="mt-1 w-px flex-1 bg-neutral-100 dark:bg-white/[0.06]" style={{ minHeight: 16 }} />
                     )}
-                  >
-                    <Icon className={cn("h-3.5 w-3.5", config.iconClass)} />
                   </div>
-                  {/* Línea conectora */}
-                  {!isLast && (
-                    <div className="mt-1 w-px flex-1 bg-neutral-100" style={{ minHeight: 16 }} />
-                  )}
-                </div>
 
-                {/* Contenido */}
-                <div className={cn("min-w-0 flex-1", !isLast && "pb-4")}>
-                  <p className="text-sm leading-snug text-neutral-700">
-                    {activity.description}
-                  </p>
-                  <p className="mt-1 text-[11px] text-neutral-400">
-                    {getRelativeTime(activity.timestamp)}
-                  </p>
-                </div>
-              </motion.div>
-            );
-          })}
+                  <div className={cn("min-w-0 flex-1", !isLast && "pb-4")}>
+                    <p className="text-sm leading-snug text-neutral-700 dark:text-slate-300">
+                      {activity.description}
+                    </p>
+                    <p className="mt-1 text-[11px] text-neutral-400 dark:text-slate-500">
+                      {getRelativeTime(activity.timestamp)}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
         </div>
       </div>
     </motion.div>

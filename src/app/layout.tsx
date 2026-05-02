@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SessionProviderWrapper } from "@/components/providers/SessionProviderWrapper";
 import { dmSans, jetbrainsMono } from "@/lib/fonts";
 import { Toaster } from "@/components/ui/toast";
 import "@/styles/globals.css";
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
     shortcut: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>",
   },
   robots: {
-    index: false, // MVP — no indexar aún
+    index: false,
     follow: false,
   },
 };
@@ -68,7 +69,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-neutral-50 font-body text-neutral-900 antialiased dark:bg-neutral-900 dark:text-neutral-100">
-        {children}
+        <SessionProviderWrapper>{children}</SessionProviderWrapper>
         <Toaster />
       </body>
     </html>

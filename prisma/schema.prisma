@@ -1,0 +1,314 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Autenticación (NextAuth) ─────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── Usuarios y organizaciones ─────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  orgId         String?
+  email         String   @unique
+  emailVerified DateTime?
+  name          String
+  password      String?
+  role          Role     @default(viewer)
+  avatarUrl     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organization Organization? @relation(fields: [orgId], references: [id])
+  accounts     Account[]
+  sessions     Session[]
+
+  bankAccounts     BankAccount[]
+  bankStatements   BankStatement[]
+  reconciliationMatches ReconciliationMatch[]
+  classificationRules   ClassificationRule[]
+  reports             Report[]
+}
+
+model Organization {
+  id             String   @id @default(cuid())
+  name           String
+  cuit           String   @unique
+  fiscalCategory String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users        User[]
+  bankAccounts BankAccount[]
+  invoices     Invoice[]
+  rules        ClassificationRule[]
+  reports      Report[]
+}
+
+enum Role {
+  admin
+  viewer
+}
+
+// ── Cuentas bancarias y extractos ─────────────────────────────────────────────
+
+model BankAccount {
+  id            String   @id @default(cuid())
+  orgId         String
+  createdBy     String
+  bankName      String
+  accountNumber String
+  cbu           String
+  currency      Currency @default(ARS)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [createdBy], references: [id])
+  statements   BankStatement[]
+}
+
+enum Currency {
+  ARS
+  USD
+}
+
+model BankStatement {
+  id               String          @id @default(cuid())
+  bankAccountId    String
+  uploadedBy       String
+  periodStart      DateTime
+  periodEnd        DateTime
+  filePath         String?
+  fileType         FileType
+  status           StatementStatus @default(processing)
+  closingBalance   Decimal         @db.Decimal(15, 2)
+  transactionCount Int             @default(0)
+  matchedCount     Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  bankAccount    BankAccount   @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [uploadedBy], references: [id])
+  transactions   Transaction[]
+  matches        ReconciliationMatch[]
+  reports        Report[]
+}
+
+enum FileType {
+  pdf
+  csv
+}
+
+enum StatementStatus {
+  processing
+  classified
+  reviewing
+  reconciled
+  completed
+}
+
+// ── Transacciones ─────────────────────────────────────────────────────────────
+
+model Transaction {
+  id                String            @id @default(cuid())
+  statementId       String
+  transactionDate   DateTime
+  description       String
+  amount            Decimal           @db.Decimal(15, 2)
+  type              TransactionType
+  aiCategory        TransactionCategory
+  userCategory      TransactionCategory?
+  aiConfidence      Float             @default(0)
+  matchStatus       MatchStatus       @default(unmatched)
+  matchedInvoiceId  String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  statement BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  invoice   Invoice?      @relation(fields: [matchedInvoiceId], references: [id])
+  matches   ReconciliationMatch[]
+}
+
+enum TransactionType {
+  credit
+  debit
+}
+
+enum TransactionCategory {
+  pago_proveedor
+  cobro_cliente
+  impuesto
+  comision_bancaria
+  transferencia_interna
+  salario
+  alquiler
+  servicio
+  retencion
+  percepcion
+  iva
+  otros
+}
+
+enum MatchStatus {
+  unmatched
+  suggested
+  confirmed
+  rejected
+}
+
+// ── Facturas ──────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id               String        @id @default(cuid())
+  orgId            String
+  invoiceNumber    String
+  type             InvoiceType
+  counterpartyName String
+  counterpartyCuit String
+  netAmount        Decimal       @db.Decimal(15, 2)
+  ivaAmount        Decimal       @db.Decimal(15, 2)
+  totalAmount      Decimal       @db.Decimal(15, 2)
+  issueDate        DateTime
+  dueDate          DateTime
+  status           InvoiceStatus @default(pending)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  matches      ReconciliationMatch[]
+}
+
+enum InvoiceType {
+  factura_a
+  factura_b
+  factura_c
+  nota_credito
+  nota_debito
+  recibo
+}
+
+enum InvoiceStatus {
+  pending
+  partially_matched
+  matched
+  overdue
+}
+
+// ── Conciliación ──────────────────────────────────────────────────────────────
+
+model ReconciliationMatch {
+  id              String      @id @default(cuid())
+  transactionId   String
+  invoiceId       String
+  confirmedById   String?
+  matchType       MatchType
+  confidenceScore Float       @default(0)
+  status          MatchStatus @default(suggested)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  invoice       Invoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  confirmedBy   User?       @relation(fields: [confirmedById], references: [id])
+  bankStatement BankStatement @relation(fields: [statementId], references: [id])
+  statementId   String
+
+  @@unique([transactionId, invoiceId])
+}
+
+enum MatchType {
+  exact
+  partial
+  grouped
+}
+
+// ── Reglas de clasificación ───────────────────────────────────────────────────
+
+model ClassificationRule {
+  id           String             @id @default(cuid())
+  orgId        String
+  createdBy    String
+  pattern      String
+  category     TransactionCategory
+  source       RuleSource         @default(ai_generated)
+  timesApplied Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [createdBy], references: [id])
+}
+
+enum RuleSource {
+  ai_generated
+  user_defined
+}
+
+// ── Reportes ──────────────────────────────────────────────────────────────────
+
+model Report {
+  id                  String          @id @default(cuid())
+  orgId               String
+  statementId         String
+  generatedBy         String
+  reportType          ReportType
+  filePath            String?
+  totalIncome         Decimal         @db.Decimal(15, 2) @default(0)
+  totalExpense        Decimal         @db.Decimal(15, 2) @default(0)
+  matchedTransactions Int             @default(0)
+  unmatchedTransactions Int           @default(0)
+  pendingReview       Int             @default(0)
+  generatedAt         DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankStatement BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [generatedBy], references: [id])
+}
+
+enum ReportType {
+  conciliation
+  monthly_summary
+  tax_detail
+}

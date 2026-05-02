@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Camera, Shield } from "lucide-react";
 import toast from "react-hot-toast";
-import { mockOrganization } from "@/lib/mock-data";
 import {
   SettingsSection,
   SettingsField,
@@ -11,11 +11,35 @@ import {
   inputCls,
 } from "./SettingsUI";
 
-// ── PerfilTab ─────────────────────────────────────────────────────────────────
+interface ProfileData {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  organization?: { id: string; name: string };
+}
 
 export function PerfilTab() {
-  const [name, setName] = useState("Lucía Fernández");
-  const email = "lucia.fernandez@techflow.com.ar";
+  const { data: session } = useSession();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((data: ProfileData) => {
+        setProfile(data);
+        setName(data.name ?? "");
+      })
+      .catch(() => {
+        if (session?.user) {
+          setName(session.user.name ?? "");
+        }
+      });
+  }, [session]);
 
   const initials = name
     .split(" ")
@@ -24,9 +48,37 @@ export function PerfilTab() {
     .slice(0, 2)
     .toUpperCase();
 
-  const handleSave = () => {
-    toast.success("Perfil actualizado correctamente", { icon: "👤" });
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Perfil actualizado correctamente", { icon: "👤" });
+    } catch {
+      toast.error("No se pudo guardar el perfil");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const memberSince = profile?.createdAt
+    ? new Date(profile.createdAt).toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "—";
+
+  const roleLabel =
+    profile?.role === "admin"
+      ? "Administrador"
+      : profile?.role === "accountant"
+        ? "Contador"
+        : profile?.role ?? "Usuario";
 
   return (
     <div className="space-y-4">
@@ -38,7 +90,7 @@ export function PerfilTab() {
         <div className="mb-6 flex items-center gap-4">
           <div className="relative">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-100 text-xl font-bold text-primary-700">
-              {initials}
+              {initials || "?"}
             </div>
             <button
               disabled
@@ -49,11 +101,11 @@ export function PerfilTab() {
             </button>
           </div>
           <div>
-            <p className="font-semibold text-neutral-900">{name}</p>
-            <p className="text-xs text-neutral-500">{email}</p>
+            <p className="font-semibold text-neutral-900">{name || "—"}</p>
+            <p className="text-xs text-neutral-500">{profile?.email ?? session?.user?.email ?? "—"}</p>
             <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
               <Shield className="h-2.5 w-2.5" />
-              Admin
+              {roleLabel}
             </div>
           </div>
         </div>
@@ -76,7 +128,7 @@ export function PerfilTab() {
               hint="El email no se puede modificar. Contactá a soporte si necesitás cambiarlo."
             >
               <input
-                value={email}
+                value={profile?.email ?? session?.user?.email ?? ""}
                 disabled
                 className={inputCls}
                 readOnly
@@ -86,7 +138,7 @@ export function PerfilTab() {
 
           <SettingsField label="Organización">
             <input
-              value={mockOrganization.name}
+              value={profile?.organization?.name ?? "—"}
               disabled
               className={inputCls}
               readOnly
@@ -97,7 +149,7 @@ export function PerfilTab() {
             <div className="flex h-9 items-center">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm font-semibold text-primary-700">
                 <Shield className="h-3.5 w-3.5" />
-                Administrador
+                {roleLabel}
               </span>
             </div>
           </SettingsField>
@@ -105,9 +157,9 @@ export function PerfilTab() {
 
         <div className="mt-6 flex items-center justify-between border-t border-neutral-100 pt-5">
           <p className="text-xs text-neutral-400">
-            Miembro desde el 10/03/2022
+            Miembro desde el {memberSince}
           </p>
-          <SaveButton onClick={handleSave} />
+          <SaveButton onClick={handleSave} disabled={saving} />
         </div>
       </SettingsSection>
     </div>

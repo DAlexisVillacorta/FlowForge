@@ -10,8 +10,7 @@ import { BankAccountSelector } from "@/components/upload/BankAccountSelector";
 import { ProcessingView } from "@/components/upload/ProcessingView";
 import { SuccessView } from "@/components/upload/SuccessView";
 import { InfoSidebar } from "@/components/upload/InfoSidebar";
-
-// ── Step indicator ────────────────────────────────────────────────────────────
+import toast from "react-hot-toast";
 
 const STEP_LABELS = ["Seleccioná el archivo", "Configurá el extracto", "Procesando", "¡Listo!"];
 
@@ -24,7 +23,6 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 | 4 }) {
         const isActive = current === stepNum;
         return (
           <div key={i} className="flex items-center">
-            {/* Dot */}
             <div className="flex flex-col items-center">
               <div
                 className={cn(
@@ -49,7 +47,6 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 | 4 }) {
               </span>
             </div>
 
-            {/* Línea conectora */}
             {i < STEP_LABELS.length - 1 && (
               <div className="mx-1 mt-[-14px] h-0.5 w-8 sm:w-14 transition-colors duration-300 md:w-20">
                 <div
@@ -66,8 +63,6 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 | 4 }) {
     </div>
   );
 }
-
-// ── Botón procesar ────────────────────────────────────────────────────────────
 
 function ProcessButton({
   disabled,
@@ -94,8 +89,6 @@ function ProcessButton({
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 export default function UploadPage() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [file, setFile] = useState<File | null>(null);
@@ -103,6 +96,7 @@ export default function UploadPage() {
   const [accountId, setAccountId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleFileSelect = useCallback((f: File) => {
     setFile(f);
@@ -118,20 +112,46 @@ export default function UploadPage() {
     setStep(1);
   }, []);
 
-  const handleProcess = useCallback(() => {
+  const handleProcess = useCallback(async () => {
+    if (!file || !accountId || !dateFrom || !dateTo) return;
+
+    setIsProcessing(true);
     setStep(3);
-  }, []);
 
-  const handleProcessingComplete = useCallback(() => {
-    setStep(4);
-  }, []);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bankAccountId", accountId);
+    formData.append("periodStart", dateFrom);
+    formData.append("periodEnd", dateTo);
 
-  const canProcess = selectedBank !== "" && dateFrom !== "" && dateTo !== "";
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Error al procesar el archivo");
+      }
+
+      toast.success(`Extracto procesado: ${data.transactions} transacciones encontradas`);
+      setStep(4);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      toast.error(message);
+      setStep(2);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [file, accountId, dateFrom, dateTo]);
+
+  const canProcess = selectedBank !== "" && accountId !== "" && dateFrom !== "" && dateTo !== "";
   const isFullWidth = step === 3 || step === 4;
 
   return (
     <div className="space-y-6 pb-10">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -145,7 +165,6 @@ export default function UploadPage() {
         </p>
       </motion.div>
 
-      {/* Step indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -155,24 +174,20 @@ export default function UploadPage() {
         <StepIndicator current={step} />
       </motion.div>
 
-      {/* Layout principal */}
       <div
         className={cn(
           "grid grid-cols-1 gap-6",
           !isFullWidth && "lg:grid-cols-3",
         )}
       >
-        {/* Columna principal */}
         <div className={cn(!isFullWidth && "lg:col-span-2")}>
           <AnimatePresence mode="wait">
-            {/* STEP 1: Upload zone */}
             {step === 1 && (
               <motion.div key="step-1">
                 <UploadZone onFileSelect={handleFileSelect} />
               </motion.div>
             )}
 
-            {/* STEP 2: File + form */}
             {step === 2 && file && (
               <motion.div
                 key="step-2"
@@ -196,35 +211,41 @@ export default function UploadPage() {
                 />
 
                 <ProcessButton
-                  disabled={!canProcess}
+                  disabled={!canProcess || isProcessing}
                   onClick={handleProcess}
                 />
 
-                {!canProcess && (
+                {(!canProcess || isProcessing) && (
                   <p className="text-center text-xs text-neutral-400">
-                    Completá el banco y el período para continuar
+                    {isProcessing ? "Procesando..." : "Completá el banco y el período para continuar"}
                   </p>
                 )}
               </motion.div>
             )}
 
-            {/* STEP 3: Processing */}
             {step === 3 && (
               <motion.div key="step-3">
-                <ProcessingView onComplete={handleProcessingComplete} />
+                <ProcessingView onComplete={() => {}} />
               </motion.div>
             )}
 
-            {/* STEP 4: Success */}
             {step === 4 && (
               <motion.div key="step-4">
-                <SuccessView />
+                <SuccessView
+                  onNewUpload={() => {
+                    setFile(null);
+                    setSelectedBank("");
+                    setAccountId("");
+                    setDateFrom("");
+                    setDateTo("");
+                    setStep(1);
+                  }}
+                />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Sidebar informativa — visible en steps 1 y 2 */}
         <AnimatePresence>
           {!isFullWidth && (
             <motion.div

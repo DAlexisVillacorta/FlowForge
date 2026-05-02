@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
-
-// ── Animation variants ────────────────────────────────────────────────────────
+import toast from "react-hot-toast";
 
 const container = {
   hidden: {},
@@ -20,12 +20,8 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3, type: "tween" as const } },
 };
 
-// ── Shared input class ────────────────────────────────────────────────────────
-
 const inputCls =
   "h-11 w-full rounded-input border border-neutral-200 bg-white px-3.5 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15";
-
-// ── Google icon ───────────────────────────────────────────────────────────────
 
 function GoogleIcon() {
   return (
@@ -50,8 +46,6 @@ function GoogleIcon() {
   );
 }
 
-// ── Divider ───────────────────────────────────────────────────────────────────
-
 function Divider() {
   return (
     <div className="flex items-center gap-3">
@@ -62,8 +56,6 @@ function Divider() {
   );
 }
 
-// ── LoginPage ─────────────────────────────────────────────────────────────────
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -72,23 +64,49 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    router.push("/dashboard");
+
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(result.error);
+        toast.error(result.error);
+      } else {
+        toast.success("Bienvenido de vuelta");
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch {
+      setError("Error al iniciar sesión");
+      toast.error("Error al iniciar sesión");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    router.push("/dashboard");
+    try {
+      await signIn("google", { callbackUrl: "/dashboard" });
+    } catch {
+      toast.error("Error al conectar con Google");
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show">
-      {/* Logo */}
       <motion.div variants={item} className="mb-8 flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
           <Zap className="h-4 w-4 text-white" />
@@ -98,7 +116,6 @@ export default function LoginPage() {
         </span>
       </motion.div>
 
-      {/* Heading */}
       <motion.div variants={item} className="mb-7">
         <h1 className="font-heading text-2xl font-bold text-neutral-900">
           Iniciá sesión
@@ -108,8 +125,17 @@ export default function LoginPage() {
         </p>
       </motion.div>
 
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700"
+        >
+          {error}
+        </motion.div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Email */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Email
@@ -125,7 +151,6 @@ export default function LoginPage() {
           />
         </motion.div>
 
-        {/* Password */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Contraseña
@@ -155,7 +180,6 @@ export default function LoginPage() {
           </div>
         </motion.div>
 
-        {/* Remember + forgot */}
         <motion.div
           variants={item}
           className="flex items-center justify-between"
@@ -177,7 +201,6 @@ export default function LoginPage() {
           </button>
         </motion.div>
 
-        {/* Submit */}
         <motion.div variants={item}>
           <button
             type="submit"
@@ -196,12 +219,10 @@ export default function LoginPage() {
         </motion.div>
       </form>
 
-      {/* Divider */}
       <motion.div variants={item} className="my-5">
         <Divider />
       </motion.div>
 
-      {/* Google */}
       <motion.div variants={item}>
         <button
           type="button"
@@ -218,7 +239,6 @@ export default function LoginPage() {
         </button>
       </motion.div>
 
-      {/* Register link */}
       <motion.p
         variants={item}
         className="mt-6 text-center text-sm text-neutral-500"

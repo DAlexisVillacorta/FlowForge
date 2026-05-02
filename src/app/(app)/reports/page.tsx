@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { usePageLoader } from "@/hooks/usePageLoader";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { motion } from "framer-motion";
@@ -10,72 +10,129 @@ import { ReportsTable } from "@/components/reports/ReportsTable";
 import { ReportPreviewModal } from "@/components/reports/ReportPreviewModal";
 import type { GeneratedReport, ReportType, ReportFormat } from "@/components/reports/types";
 
-// ── Initial mock reports ──────────────────────────────────────────────────────
-
-let nextId = 4;
-
-const INITIAL_REPORTS: GeneratedReport[] = [
-  {
-    id: "rep-1",
-    type: "conciliacion",
-    period: "Galicia — Marzo 2026",
-    format: "excel",
-    generatedAt: new Date("2026-03-30T10:00:00"),
-  },
-  {
-    id: "rep-2",
-    type: "resumen_mensual",
-    period: "Febrero 2026",
-    format: "pdf",
-    generatedAt: new Date("2026-03-01T09:00:00"),
-  },
-  {
-    id: "rep-3",
-    type: "detalle_impositivo",
-    period: "Febrero 2026",
-    format: "excel",
-    generatedAt: new Date("2026-03-01T09:30:00"),
-  },
-];
-
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 function ReportsPageContent() {
-  const [reports, setReports] = useState<GeneratedReport[]>(INITIAL_REPORTS);
+  const [reports, setReports] = useState<GeneratedReport[]>([]);
+  const [statements, setStatements] = useState<Array<{ id: string; bankAccount?: { bankName: string }; periodStart: string }>>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/reports").then((r) => r.json()),
+      fetch("/api/statements").then((r) => r.json()),
+    ])
+      .then(([reportsData, stmts]) => {
+        const mapped = (reportsData || []).map((r: {
+          id: string;
+          reportType: string;
+          statementId: string;
+          generatedAt: string;
+          filePath?: string;
+          bankStatement?: {
+            periodStart: Date;
+            bankAccount?: { bankName: string };
+          };
+        }) => {
+          const typeMap: Record<string, ReportType> = {
+            conciliation: "conciliacion",
+            monthly_summary: "resumen_mensual",
+            tax_detail: "detalle_impositivo",
+          };
+          return {
+            id: r.id,
+            statementId: r.statementId,
+            type: typeMap[r.reportType] || "conciliacion",
+            period: r.bankStatement
+              ? `${r.bankStatement.bankAccount?.bankName ?? ""} — ${new Date(r.bankStatement.periodStart).toLocaleString("es-AR", { month: "long", year: "numeric" })}`
+              : "Sin período",
+            format: r.filePath?.endsWith(".xlsx") ? "excel" as ReportFormat : "pdf" as ReportFormat,
+            generatedAt: new Date(r.generatedAt),
+          };
+        });
+        setReports(mapped);
+        setStatements(stmts || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const previewReport = reports.find((r) => r.id === previewId) ?? null;
 
+  const [selectedStmtId, setSelectedStmtId] = useState("");
+
   const handleGenerate = useCallback(
-    (type: ReportType, period: string, format: ReportFormat) => {
-      const newReport: GeneratedReport = {
-        id: `rep-${nextId++}`,
-        type,
-        period,
-        format,
-        generatedAt: new Date("2026-03-30T12:00:00"),
+    async (type: ReportType, period: string, format: ReportFormat, stmtId?: string) => {
+      const typeMap: Record<ReportType, string> = {
+        conciliacion: "conciliation",
+        resumen_mensual: "monthly_summary",
+        detalle_impositivo: "tax_detail",
       };
-      setReports((prev) => [newReport, ...prev]);
-      toast.success("Reporte generado exitosamente", {
-        icon: "📊",
-        style: {
-          background: "#f0fdf4",
-          color: "#166534",
-          border: "1px solid #86efac",
-        },
-      });
+
+      try {
+        const res = await fetch("/api/reports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportType: typeMap[type],
+            period,
+            format,
+            statementId: type === "conciliacion" ? stmtId : undefined,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Error al generar el reporte");
+        }
+
+        const newReport = await res.json();
+        const reportTypeMap: Record<string, ReportType> = {
+          conciliation: "conciliacion",
+          monthly_summary: "resumen_mensual",
+          tax_detail: "detalle_impositivo",
+        };
+
+        const stmt = statements.find(s => s.id === stmtId);
+        const mappedReport: GeneratedReport = {
+          id: newReport.id,
+          statementId: newReport.statementId ?? stmtId,
+          type: reportTypeMap[newReport.reportType] || "conciliacion",
+          period: period || (stmt ? `${stmt.bankAccount?.bankName ?? ""} — ${new Date(stmt.periodStart).toLocaleString("es-AR", { month: "long", year: "numeric" })}` : "Generado"),
+          format,
+          generatedAt: new Date(newReport.generatedAt),
+        };
+
+        setReports((prev) => [mappedReport, ...prev]);
+        toast.success("Reporte generado exitosamente", {
+          icon: "📊",
+          style: {
+            background: "#f0fdf4",
+            color: "#166534",
+            border: "1px solid #86efac",
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Error desconocido";
+        toast.error(message);
+      }
     },
-    [],
+    [statements],
   );
 
-  const handleDelete = useCallback((id: string) => {
-    setReports((prev) => prev.filter((r) => r.id !== id));
-    toast("Reporte eliminado", { icon: "🗑️" });
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/reports/${id}`, { method: "DELETE" });
+      setReports((prev) => prev.filter((r) => r.id !== id));
+      toast("Reporte eliminado", { icon: "🗑️" });
+    } catch {
+      toast.error("Error al eliminar el reporte");
+    }
   }, []);
+
+  if (loading) return <PageLoader variant="default" />;
 
   return (
     <div className="space-y-8">
-      {/* Page header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -89,7 +146,6 @@ function ReportsPageContent() {
         </p>
       </motion.div>
 
-      {/* Generator cards */}
       <section>
         <motion.div
           initial={{ opacity: 0 }}
@@ -110,21 +166,23 @@ function ReportsPageContent() {
             type="conciliacion"
             delay={0.08}
             onGenerate={handleGenerate}
+            statements={statements}
           />
           <ReportTypeCard
             type="resumen_mensual"
             delay={0.14}
             onGenerate={handleGenerate}
+            statements={statements}
           />
           <ReportTypeCard
             type="detalle_impositivo"
             delay={0.20}
             onGenerate={handleGenerate}
+            statements={statements}
           />
         </div>
       </section>
 
-      {/* Generated reports table */}
       <section>
         <ReportsTable
           reports={reports}
@@ -133,7 +191,6 @@ function ReportsPageContent() {
         />
       </section>
 
-      {/* Preview modal */}
       <ReportPreviewModal
         report={previewReport}
         isOpen={previewId !== null}

@@ -83,7 +83,7 @@ function MiniStat({ value, label }: { value: string; label: string }) {
 
 // ── SuccessView ───────────────────────────────────────────────────────────────
 
-export function SuccessView() {
+export function SuccessView({ onNewUpload }: { onNewUpload?: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -15,8 +15,8 @@ import {
   Zap,
   LogOut,
 } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { mockCurrentUser, mockOrganization } from "@/lib/mock-data";
 import { useSidebar } from "./SidebarContext";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -205,12 +205,16 @@ function SidebarContent({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const { data: session } = useSession();
   const { toggleCollapsed } = useSidebar();
 
   function handleLogout() {
-    router.push("/login");
+    signOut({ callbackUrl: "/login" });
   }
+
+  const userName = session?.user?.name ?? "Usuario";
+  const userEmail = session?.user?.email ?? "";
+  const orgName = (session?.user as Record<string, unknown>)?.orgName as string ?? "Mi Empresa";
 
   return (
     <div
@@ -301,7 +305,7 @@ function SidebarContent({
               className="overflow-hidden px-5 pt-3"
             >
               <p className="truncate text-[11px] font-medium text-slate-600">
-                {mockOrganization.name}
+                {orgName}
               </p>
             </motion.div>
           )}
@@ -311,7 +315,7 @@ function SidebarContent({
         <div className="flex items-center gap-3 px-3 py-3">
           {/* Avatar */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-500/30 text-sm font-semibold text-primary-300 ring-1 ring-primary-500/40">
-            {getInitials(mockCurrentUser.name)}
+            {getInitials(userName)}
           </div>
 
           <AnimatePresence initial={false}>
@@ -324,10 +328,10 @@ function SidebarContent({
                 className="min-w-0 flex-1 overflow-hidden"
               >
                 <p className="truncate text-sm font-medium text-slate-200">
-                  {mockCurrentUser.name}
+                  {userName}
                 </p>
                 <p className="truncate text-[11px] text-slate-500">
-                  {mockCurrentUser.email}
+                  {userEmail}
                 </p>
               </motion.div>
             )}

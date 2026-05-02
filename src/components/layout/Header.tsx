@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { signOut, useSession } from "next-auth/react";
 import {
   Bell,
   Search,
@@ -17,7 +18,7 @@ import {
   FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockCurrentUser, mockTransactions, mockInvoices } from "@/lib/mock-data";
+import { mockTransactions, mockInvoices } from "@/lib/mock-data";
 import { useSidebar } from "./SidebarContext";
 
 // ── Mapa de rutas a breadcrumb ────────────────────────────────────────────────
@@ -91,7 +92,7 @@ function getInitials(name: string) {
 
 function UserDropdown() {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
+  const { data: session } = useSession();
 
   useEffect(() => {
     if (!open) return;
@@ -105,8 +106,11 @@ function UserDropdown() {
 
   function handleLogout() {
     setOpen(false);
-    router.push("/login");
+    signOut({ callbackUrl: "/login" });
   }
+
+  const userName = session?.user?.name ?? "Usuario";
+  const userEmail = session?.user?.email ?? "";
 
   return (
     <div className="relative" data-user-menu>
@@ -116,23 +120,24 @@ function UserDropdown() {
           "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-all",
           "bg-primary-100 text-primary-700 ring-2 ring-transparent",
           "hover:ring-primary-200 focus-visible:outline-none focus-visible:ring-primary-400",
-          open && "ring-primary-300",
+          "dark:bg-primary-500/20 dark:text-primary-300 dark:hover:ring-primary-500/40",
+          open && "ring-primary-300 dark:ring-primary-500/40",
         )}
         aria-label="Menú de usuario"
         aria-expanded={open}
       >
-        {getInitials(mockCurrentUser.name)}
+        {getInitials(userName)}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-card border border-neutral-200 bg-white shadow-elevated dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-card border border-neutral-200 bg-white shadow-elevated dark:border-white/[0.1] dark:bg-[#1C2336] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {/* User info header */}
-          <div className="border-b border-neutral-100 px-4 py-3 dark:border-neutral-700">
-            <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              {mockCurrentUser.name}
+          <div className="border-b border-neutral-100 px-4 py-3 dark:border-white/[0.06]">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-slate-100">
+              {userName}
             </p>
-            <p className="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">
-              {mockCurrentUser.email}
+            <p className="mt-0.5 truncate text-xs text-neutral-500 dark:text-slate-400">
+              {userEmail}
             </p>
           </div>
 
@@ -144,10 +149,10 @@ function UserDropdown() {
               label="Configuración"
               href="/settings"
             />
-            <div className="mx-2 my-1 h-px bg-neutral-100 dark:bg-neutral-700" />
+            <div className="mx-2 my-1 h-px bg-neutral-100 dark:bg-white/[0.06]" />
             <button
               onClick={handleLogout}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-danger-600 transition-colors hover:bg-danger-50 dark:hover:bg-danger-950/30"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-danger-600 transition-colors hover:bg-danger-50 dark:text-red-400 dark:hover:bg-red-500/10"
             >
               <LogOut className="h-4 w-4" />
               Cerrar sesión
@@ -171,9 +176,9 @@ function DropdownItem({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-4 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-700"
+      className="flex items-center gap-2.5 px-4 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-50 dark:text-slate-300 dark:hover:bg-white/[0.05]"
     >
-      <Icon className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+      <Icon className="h-4 w-4 text-neutral-400 dark:text-slate-500" />
       {label}
     </Link>
   );
@@ -288,14 +293,14 @@ function GlobalSearch() {
           "placeholder:text-neutral-400 outline-none transition-all",
           "focus:w-64 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/15",
           "lg:w-60",
-          "dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:placeholder:text-neutral-500",
-          "dark:focus:bg-neutral-800 dark:focus:border-primary-500",
+          "dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200 dark:placeholder:text-slate-500",
+          "dark:focus:bg-white/[0.08] dark:focus:border-primary-500/60",
         )}
       />
 
       {/* Dropdown de resultados */}
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 overflow-hidden rounded-card border border-neutral-200 bg-white shadow-elevated dark:border-neutral-700 dark:bg-neutral-800">
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 overflow-hidden rounded-card border border-neutral-200 bg-white shadow-elevated dark:border-white/[0.1] dark:bg-[#1C2336] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {results.length === 0 ? (
             <p className="px-4 py-3 text-xs text-neutral-400 dark:text-neutral-500">
               Sin resultados para &ldquo;{query}&rdquo;
@@ -307,7 +312,7 @@ function GlobalSearch() {
                   <button
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSelect(result)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-700"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-white/[0.05]"
                   >
                     <span className={cn(
                       "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
@@ -330,7 +335,7 @@ function GlobalSearch() {
                   </button>
                 </li>
               ))}
-              <li className="border-t border-neutral-100 dark:border-neutral-700">
+              <li className="border-t border-neutral-100 dark:border-white/[0.06]">
                 <button
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
@@ -359,7 +364,7 @@ function DarkModeToggle() {
   return (
     <button
       onClick={toggleDarkMode}
-      className="relative flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
+      className="relative flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200"
       aria-label={darkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       title={darkMode ? "Modo claro" : "Modo oscuro"}
     >
@@ -385,14 +390,14 @@ export function Header() {
       className={cn(
         "sticky top-0 z-10 flex h-14 items-center gap-4 border-b px-4 transition-all duration-200 lg:px-6",
         scrolled
-          ? "border-neutral-200 bg-white/90 shadow-subtle backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/90"
-          : "border-neutral-100 bg-white/80 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/80",
+          ? "border-neutral-200 bg-white/90 shadow-subtle backdrop-blur-md dark:border-white/[0.06] dark:bg-[#0D1117]/95 dark:shadow-[0_1px_0_rgba(255,255,255,0.05)]"
+          : "border-neutral-100 bg-white/80 backdrop-blur-sm dark:border-white/[0.04] dark:bg-[#0D1117]/80",
       )}
     >
       {/* Hamburger — solo mobile */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-700 lg:hidden"
+        className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200 lg:hidden"
         aria-label="Abrir menú de navegación"
       >
         <Menu className="h-5 w-5" />
@@ -437,7 +442,7 @@ export function Header() {
 
         {/* Notificaciones */}
         <button
-          className="relative flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
+          className="relative flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:text-slate-400 dark:hover:bg-white/[0.06] dark:hover:text-slate-200"
           aria-label={
             hasNotifications
               ? "Notificaciones — tenés pendientes"

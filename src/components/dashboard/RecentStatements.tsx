@@ -6,9 +6,6 @@ import { Building2, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn, getStatusBadgeClasses } from "@/lib/utils";
-import { mockStatements, mockBankAccounts } from "@/lib/mock-data";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatPeriod(start: Date): string {
   const raw = format(start, "MMMM yyyy", { locale: es });
@@ -22,8 +19,6 @@ const statusLabels: Record<string, string> = {
   reconciled: "Conciliado",
   completed: "Completado",
 };
-
-// ── Statement row ─────────────────────────────────────────────────────────────
 
 interface StatementRowProps {
   bankName: string;
@@ -44,7 +39,7 @@ function StatementRow({
   transactionCount,
   index,
 }: StatementRowProps) {
-  const progressPct = Math.round((matchedCount / transactionCount) * 100);
+  const progressPct = transactionCount > 0 ? Math.round((matchedCount / transactionCount) * 100) : 0;
 
   return (
     <motion.div
@@ -58,17 +53,15 @@ function StatementRow({
     >
       <Link
         href={`/transactions?statement=${statementId}`}
-        className="group flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-neutral-50"
+        className="group flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-neutral-50 dark:hover:bg-white/[0.04]"
       >
-        {/* Icono banco */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50">
-          <Building2 className="h-5 w-5 text-primary-600" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-500/15">
+          <Building2 className="h-5 w-5 text-primary-600 dark:text-primary-400" />
         </div>
 
-        {/* Info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-sm font-semibold text-neutral-900">
+            <p className="truncate text-sm font-semibold text-neutral-900 dark:text-slate-100">
               {bankName} — {period}
             </p>
             <span
@@ -81,9 +74,8 @@ function StatementRow({
             </span>
           </div>
 
-          {/* Barra de progreso */}
           <div className="mt-2 flex items-center gap-2">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-white/[0.08]">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPct}%` }}
@@ -102,66 +94,71 @@ function StatementRow({
                 )}
               />
             </div>
-            <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">
+            <span className="shrink-0 text-[11px] tabular-nums text-neutral-500 dark:text-slate-500">
               {matchedCount}/{transactionCount}
             </span>
           </div>
         </div>
 
-        {/* Arrow */}
-        <ArrowRight className="h-4 w-4 shrink-0 text-neutral-300 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-400" />
+        <ArrowRight className="h-4 w-4 shrink-0 text-neutral-300 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-400 dark:text-slate-600 dark:group-hover:text-slate-400" />
       </Link>
     </motion.div>
   );
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
+interface RecentStatementsProps {
+  data?: Array<{
+    id: string;
+    bankAccount?: { bankName: string };
+    periodStart: Date;
+    status: string;
+    matchedCount: number;
+    transactionCount: number;
+  }>;
+}
 
-export function RecentStatements() {
-  const statementsWithBank = mockStatements.map((stmt) => {
-    const bank = mockBankAccounts.find((ba) => ba.id === stmt.bankAccountId)!;
-    return { ...stmt, bankName: bank.bankName };
-  });
-
+export function RecentStatements({ data = [] }: RecentStatementsProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="rounded-card border border-neutral-200 bg-white shadow-subtle"
+      className="rounded-card border border-neutral-200 bg-white shadow-subtle dark:border-white/[0.07] dark:bg-[#161B27] dark:shadow-[0_4px_28px_rgba(0,0,0,0.4)]"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4 dark:border-white/[0.05]">
         <div>
-          <h2 className="font-heading text-base font-semibold text-neutral-900">
+          <h2 className="font-heading text-base font-semibold text-neutral-900 dark:text-slate-100">
             Extractos recientes
           </h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
-            {statementsWithBank.length} extractos cargados
+          <p className="mt-0.5 text-xs text-neutral-500 dark:text-slate-400">
+            {data.length} extractos cargados
           </p>
         </div>
         <Link
           href="/transactions"
-          className="text-xs font-medium text-primary-600 transition-colors hover:text-primary-700"
+          className="text-xs font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
         >
           Ver todos →
         </Link>
       </div>
 
-      {/* List */}
-      <div className="divide-y divide-neutral-50 px-2 py-2">
-        {statementsWithBank.map((stmt, i) => (
-          <StatementRow
-            key={stmt.id}
-            bankName={stmt.bankName}
-            period={formatPeriod(stmt.periodStart)}
-            statementId={stmt.id}
-            status={stmt.status}
-            matchedCount={stmt.matchedCount}
-            transactionCount={stmt.transactionCount}
-            index={i}
-          />
-        ))}
+      <div className="divide-y divide-neutral-50 px-2 py-2 dark:divide-white/[0.04]">
+        {data.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-neutral-400 dark:text-slate-500">No hay extractos aún</p>
+        ) : (
+          data.map((stmt, i) => (
+            <StatementRow
+              key={stmt.id}
+              bankName={stmt.bankAccount?.bankName ?? "Banco"}
+              period={formatPeriod(stmt.periodStart)}
+              statementId={stmt.id}
+              status={stmt.status}
+              matchedCount={stmt.matchedCount}
+              transactionCount={stmt.transactionCount}
+              index={i}
+            />
+          ))
+        )}
       </div>
     </motion.div>
   );

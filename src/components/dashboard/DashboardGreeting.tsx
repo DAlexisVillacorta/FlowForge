@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Upload } from "lucide-react";
 import { motion } from "framer-motion";
-import { mockCurrentUser } from "@/lib/mock-data";
+import { useSession } from "next-auth/react";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -13,7 +13,8 @@ function getGreeting(): string {
 }
 
 export function DashboardGreeting() {
-  const firstName = mockCurrentUser.name.split(" ")[0];
+  const { data: session } = useSession();
+  const firstName = (session?.user?.name ?? "").split(" ")[0] || "!";
 
   return (
     <motion.div

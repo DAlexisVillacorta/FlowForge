@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   GitMerge,
@@ -12,7 +12,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockStatements, mockBankAccounts } from "@/lib/mock-data";
 import type { ReportType, ReportFormat } from "./types";
 
 // ── Config per report type ────────────────────────────────────────────────────
@@ -61,13 +60,22 @@ const CONFIG = {
 
 // ── Periods ───────────────────────────────────────────────────────────────────
 
-const PERIODS = [
-  { value: "2026-03", label: "Marzo 2026" },
-  { value: "2026-02", label: "Febrero 2026" },
-  { value: "2026-01", label: "Enero 2026" },
-  { value: "2025-12", label: "Diciembre 2025" },
-  { value: "2025-11", label: "Noviembre 2025" },
-];
+const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function generatePeriodsFromStatements(statements: Array<{ periodStart: string }>) {
+  const periodSet = new Set<string>();
+  statements.forEach(s => {
+    const d = new Date(s.periodStart);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    periodSet.add(key);
+  });
+  return Array.from(periodSet)
+    .sort((a, b) => b.localeCompare(a))
+    .map(value => {
+      const [year, month] = value.split('-');
+      return { value, label: `${MONTHS[parseInt(month) - 1]} ${year}` };
+    });
+}
 
 // ── Format selector ───────────────────────────────────────────────────────────
 
@@ -121,37 +129,42 @@ function FormatSelector({
 interface ReportTypeCardProps {
   type: ReportType;
   delay?: number;
-  onGenerate: (type: ReportType, period: string, format: ReportFormat) => void;
+  onGenerate: (type: ReportType, period: string, format: ReportFormat, stmtId?: string) => void;
+  statements: Array<{
+    id: string;
+    periodStart: string;
+    bankAccount?: { bankName: string };
+  }>;
 }
 
-function getStmtLabel(stmtId: string): string {
-  const stmt = mockStatements.find((s) => s.id === stmtId);
-  if (!stmt) return stmtId;
-  const acc = mockBankAccounts.find((a) => a.id === stmt.bankAccountId);
-  const d = stmt.periodStart;
+function getStmtLabel(stmt: { periodStart: string; bankAccount?: { bankName: string } }): string {
+  const d = new Date(stmt.periodStart);
   const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  return `${acc?.bankName ?? "Banco"} — ${months[d.getMonth()]} ${d.getFullYear()}`;
+  return `${stmt.bankAccount?.bankName ?? "Banco"} — ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-export function ReportTypeCard({ type, delay = 0, onGenerate }: ReportTypeCardProps) {
+export function ReportTypeCard({ type, delay = 0, onGenerate, statements }: ReportTypeCardProps) {
   const cfg = CONFIG[type];
   const Icon = cfg.icon;
 
   const [format, setFormat] = useState<ReportFormat>(cfg.formats[0]);
-  const [stmtId, setStmtId] = useState("stmt-1");
-  const [period, setPeriod] = useState("2026-03");
+  const [stmtId, setStmtId] = useState("");
+  const [period, setPeriod] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const displayPeriod = cfg.hasStmtSelect
-    ? getStmtLabel(stmtId)
-    : PERIODS.find((p) => p.value === period)?.label ?? period;
+  const periods = generatePeriodsFromStatements(statements);
 
-  const handleGenerate = () => {
+  const displayPeriod = cfg.hasStmtSelect
+    ? (statements.find(s => s.id === stmtId) ? getStmtLabel(statements.find(s => s.id === stmtId)!) : "Seleccionar extracto")
+    : (periods.find((p) => p.value === period)?.label ?? "Seleccionar período");
+
+  const handleGenerate = async () => {
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await onGenerate(type, displayPeriod, format, cfg.hasStmtSelect ? stmtId : undefined);
+    } finally {
       setLoading(false);
-      onGenerate(type, displayPeriod, format);
-    }, 2000);
+    }
   };
 
   return (
@@ -204,9 +217,10 @@ export function ReportTypeCard({ type, delay = 0, onGenerate }: ReportTypeCardPr
               onChange={(e) => setStmtId(e.target.value)}
               className="h-8 w-full rounded-input border border-neutral-200 bg-white px-2.5 text-xs text-neutral-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15"
             >
-              {mockStatements.map((s) => (
+              <option value="">Seleccionar extracto</option>
+              {statements.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {getStmtLabel(s.id)}
+                  {getStmtLabel(s)}
                 </option>
               ))}
             </select>
@@ -224,7 +238,8 @@ export function ReportTypeCard({ type, delay = 0, onGenerate }: ReportTypeCardPr
               onChange={(e) => setPeriod(e.target.value)}
               className="h-8 w-full rounded-input border border-neutral-200 bg-white px-2.5 text-xs text-neutral-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15"
             >
-              {PERIODS.map((p) => (
+              <option value="">Seleccionar período</option>
+              {periods.map((p) => (
                 <option key={p.value} value={p.value}>
                   {p.label}
                 </option>

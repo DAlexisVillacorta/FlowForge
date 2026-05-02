@@ -194,25 +194,48 @@ export function MatchDetailCard({
         </motion.div>
       )}
 
-      {noMatchVisible && (
+      {noMatchVisible && tx && (
         <motion.div
           key="no-match"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.96 }}
+          className="rounded-xl border border-dashed border-neutral-300 bg-white p-4 shadow-subtle"
         >
-          <Search className="mx-auto mb-2 h-5 w-5 text-neutral-400" />
-          <p className="text-xs font-medium text-neutral-500">
-            Sin match sugerido
-          </p>
-          <p className="mt-1 text-[11px] text-neutral-400">
-            La IA no encontró una factura correspondiente
-          </p>
+          {/* Selected tx preview */}
+          <div className="mb-3 rounded-lg bg-neutral-50 p-2.5">
+            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              Movimiento seleccionado
+            </p>
+            <p className="line-clamp-2 text-xs font-medium text-neutral-800">
+              {tx.description}
+            </p>
+            <p
+              className={cn(
+                "mt-0.5 font-mono text-sm font-bold",
+                tx.type === "credit" ? "text-success-600" : "text-danger-600",
+              )}
+            >
+              {tx.type === "credit" ? "+" : "−"}
+              {formatCurrency(Math.abs(tx.amount))}
+            </p>
+          </div>
+
+          <div className="mb-3 flex flex-col items-center gap-1 px-2 text-center">
+            <Search className="h-5 w-5 text-neutral-400" />
+            <p className="text-xs font-medium text-neutral-600">
+              Sin match sugerido
+            </p>
+            <p className="text-[11px] leading-snug text-neutral-400">
+              La IA no encontró una factura para este movimiento. Buscá una manualmente.
+            </p>
+          </div>
+
           <button
             onClick={onSearchOther}
-            className="mt-3 rounded-input border border-primary-300 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-100"
+            className="flex w-full items-center justify-center gap-1.5 rounded-input bg-primary-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-700 active:scale-[0.98]"
           >
+            <Search className="h-3 w-3" />
             Buscar factura manualmente
           </button>
         </motion.div>

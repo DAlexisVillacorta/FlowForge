@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Plus, X, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockBankAccounts } from "@/lib/mock-data";
-
-// ── Bancos disponibles ────────────────────────────────────────────────────────
+import toast from "react-hot-toast";
 
 const BANKS = [
   "Galicia",
@@ -18,15 +16,56 @@ const BANKS = [
   "Otro",
 ];
 
-// Mapeo banco-selección → nombre en mock data
-const BANK_NAME_MAP: Record<string, string> = {
-  Galicia: "Banco Galicia",
-  BIND: "Banco BIND",
-};
+interface BankAccount {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  cbu: string;
+  currency: string;
+}
 
-// ── Modal agregar cuenta ──────────────────────────────────────────────────────
+function AddAccountModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [cbu, setCbu] = useState("");
+  const [currency, setCurrency] = useState("ARS");
+  const [loading, setLoading] = useState(false);
 
-function AddAccountModal({ onClose }: { onClose: () => void }) {
+  const handleSubmit = async () => {
+    if (!bankName || !accountNumber || !cbu) {
+      toast.error("Completá todos los campos");
+      return;
+    }
+
+    if (cbu.length !== 22) {
+      toast.error("El CBU debe tener 22 dígitos");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/bank-accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankName, accountNumber, cbu, currency }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al crear la cuenta");
+      }
+
+      toast.success("Cuenta bancaria creada");
+      onSuccess();
+      onClose();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -35,10 +74,8 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      {/* Overlay */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-      {/* Modal */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -47,7 +84,6 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
         className="relative w-full max-w-md rounded-card border border-neutral-200 bg-white p-6 shadow-elevated"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="mb-5 flex items-start justify-between">
           <div>
             <h3 className="font-heading text-lg font-bold text-neutral-900">
@@ -65,7 +101,6 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Form */}
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-neutral-700">
@@ -73,6 +108,8 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
             </label>
             <input
               type="text"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
               placeholder="Ej: Banco Galicia"
               className="h-10 w-full rounded-input border border-neutral-200 px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15"
             />
@@ -83,6 +120,8 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
             </label>
             <input
               type="text"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
               placeholder="Ej: 4019871/2 070-3"
               className="h-10 w-full rounded-input border border-neutral-200 px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15"
             />
@@ -93,6 +132,8 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
             </label>
             <input
               type="text"
+              value={cbu}
+              onChange={(e) => setCbu(e.target.value.replace(/\D/g, "").slice(0, 22))}
               placeholder="0070670230000712345691"
               maxLength={22}
               className="h-10 w-full rounded-input border border-neutral-200 px-3 font-mono text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15"
@@ -108,7 +149,8 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
                   <input
                     type="radio"
                     name="currency"
-                    defaultChecked={cur === "ARS"}
+                    checked={currency === cur}
+                    onChange={() => setCurrency(cur)}
                     className="accent-primary-600"
                   />
                   <span className="text-sm text-neutral-700">{cur}</span>
@@ -118,7 +160,6 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onClose}
@@ -127,18 +168,17 @@ function AddAccountModal({ onClose }: { onClose: () => void }) {
             Cancelar
           </button>
           <button
-            onClick={onClose}
-            className="rounded-input bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="rounded-input bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
           >
-            Guardar cuenta
+            {loading ? "Guardando..." : "Guardar cuenta"}
           </button>
         </div>
       </motion.div>
     </motion.div>
   );
 }
-
-// ── Select custom liviano ─────────────────────────────────────────────────────
 
 function SimpleSelect({
   value,
@@ -186,7 +226,6 @@ function SimpleSelect({
       <AnimatePresence>
         {open && (
           <>
-            {/* Click-away */}
             <div
               className="fixed inset-0 z-10"
               onClick={() => setOpen(false)}
@@ -225,8 +264,6 @@ function SimpleSelect({
   );
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
-
 interface BankAccountSelectorProps {
   selectedBank: string;
   onBankChange: (bank: string) => void;
@@ -249,24 +286,42 @@ export function BankAccountSelector({
   onDateToChange,
 }: BankAccountSelectorProps) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filtrar cuentas según banco seleccionado
-  const matchingAccounts = selectedBank
-    ? mockBankAccounts.filter((ba) => {
-        const mapped = BANK_NAME_MAP[selectedBank];
-        return mapped ? ba.bankName === mapped : false;
+  useEffect(() => {
+    fetch("/api/bank-accounts")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setAccounts(data);
+        }
       })
-    : [];
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const matchingAccounts = selectedBank
+    ? accounts.filter((ba) => ba.bankName.toLowerCase().includes(selectedBank.toLowerCase()))
+    : accounts;
 
   const accountOptions = matchingAccounts.map((ba) => ({
     value: ba.id,
-    label: `${ba.accountNumber} — CBU ${ba.cbu.slice(0, 6)}…`,
+    label: `${ba.bankName} — ${ba.accountNumber} — CBU ${ba.cbu.slice(0, 6)}…`,
   }));
 
   const handleBankChange = (bank: string) => {
     onBankChange(bank);
     onAccountChange("");
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-neutral-200 bg-white p-5 shadow-subtle">
+        <p className="text-sm text-neutral-400">Cargando cuentas bancarias...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -280,7 +335,6 @@ export function BankAccountSelector({
           Información del extracto
         </h3>
 
-        {/* Banco */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             ¿De qué banco es este extracto?{" "}
@@ -294,7 +348,6 @@ export function BankAccountSelector({
           />
         </div>
 
-        {/* Cuenta */}
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <label className="text-sm font-medium text-neutral-700">
@@ -330,7 +383,7 @@ export function BankAccountSelector({
               placeholder={
                 selectedBank
                   ? "Seleccioná una cuenta"
-                  : "Primero elegí un banco"
+                  : "Seleccioná una cuenta bancaria"
               }
               options={accountOptions}
               disabled={!selectedBank || matchingAccounts.length === 0}
@@ -338,7 +391,6 @@ export function BankAccountSelector({
           )}
         </div>
 
-        {/* Período */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Período del extracto{" "}
@@ -376,10 +428,20 @@ export function BankAccountSelector({
         </div>
       </motion.div>
 
-      {/* Modal agregar cuenta */}
       <AnimatePresence>
         {showAddModal && (
-          <AddAccountModal onClose={() => setShowAddModal(false)} />
+          <AddAccountModal
+            onClose={() => setShowAddModal(false)}
+            onSuccess={() => {
+              fetch("/api/bank-accounts")
+                .then((res) => res.json())
+                .then((data) => {
+                  if (Array.isArray(data)) {
+                    setAccounts(data);
+                  }
+                });
+            }}
+          />
         )}
       </AnimatePresence>
     </>

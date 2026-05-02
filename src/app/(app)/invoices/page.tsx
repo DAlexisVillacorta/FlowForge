@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { usePageLoader } from "@/hooks/usePageLoader";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { Plus, ChevronRight, FileText } from "lucide-react";
 import toast from "react-hot-toast";
-import { mockInvoices } from "@/lib/mock-data";
 import { InvoiceFilters } from "@/components/invoices/InvoiceFilters";
 import { InvoiceTable } from "@/components/invoices/InvoiceTable";
 import { InvoiceModal } from "@/components/invoices/InvoiceModal";
@@ -14,14 +13,9 @@ import { InvoiceSummaryFooter } from "@/components/invoices/InvoiceSummaryFooter
 import type { InvoiceTab, InvoiceFilterState } from "@/components/invoices/InvoiceFilters";
 import type { Invoice } from "@/lib/types";
 
-// ── Seed ──────────────────────────────────────────────────────────────────────
-
-let nextId = mockInvoices.length + 1;
-
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 function InvoicesPageContent() {
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InvoiceTab>("all");
   const [filters, setFilters] = useState<InvoiceFilterState>({
     search: "",
@@ -36,7 +30,15 @@ function InvoicesPageContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
-  // ── Derived counts ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/invoices")
+      .then((r) => r.json())
+      .then((data) => {
+        setInvoices(data?.invoices || data || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const counts = useMemo(() => {
     const pending = invoices.filter(
@@ -47,12 +49,9 @@ function InvoicesPageContent() {
     return { all: invoices.length, pending, matched, overdue };
   }, [invoices]);
 
-  // ── Filtered list ───────────────────────────────────────────────────────────
-
   const filtered = useMemo(() => {
     let list = invoices;
 
-    // Tab filter
     if (activeTab === "pending") {
       list = list.filter(
         (inv) => inv.status === "pending" || inv.status === "partially_matched",
@@ -63,7 +62,6 @@ function InvoicesPageContent() {
       list = list.filter((inv) => inv.status === "overdue");
     }
 
-    // Search
     if (filters.search) {
       const q = filters.search.toLowerCase();
       list = list.filter(
@@ -74,12 +72,10 @@ function InvoicesPageContent() {
       );
     }
 
-    // Type
     if (filters.type) {
       list = list.filter((inv) => inv.type === filters.type);
     }
 
-    // Date range (by issueDate)
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom);
       list = list.filter((inv) => inv.issueDate >= from);
@@ -89,7 +85,6 @@ function InvoicesPageContent() {
       list = list.filter((inv) => inv.issueDate <= to);
     }
 
-    // Amount range (totalAmount)
     if (filters.amountMin) {
       const min = parseFloat(filters.amountMin);
       list = list.filter((inv) => inv.totalAmount >= min);
@@ -102,29 +97,41 @@ function InvoicesPageContent() {
     return list;
   }, [invoices, activeTab, filters]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
   const selectedInvoice = useMemo(
     () => invoices.find((inv) => inv.id === selectedId) ?? null,
     [invoices, selectedId],
   );
 
-  const handleSave = (data: Omit<Invoice, "id" | "orgId">) => {
+  const handleSave = async (data: Omit<Invoice, "id" | "orgId">) => {
     if (editingInvoice) {
-      setInvoices((prev) =>
-        prev.map((inv) =>
-          inv.id === editingInvoice.id ? { ...inv, ...data } : inv,
-        ),
-      );
-      toast.success("Factura actualizada");
+      try {
+        await fetch(`/api/invoices/${editingInvoice.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            inv.id === editingInvoice.id ? { ...inv, ...data } : inv,
+          ),
+        );
+        toast.success("Factura actualizada");
+      } catch {
+        toast.error("Error al actualizar la factura");
+      }
     } else {
-      const newInv: Invoice = {
-        id: `inv-new-${nextId++}`,
-        orgId: "org-1",
-        ...data,
-      };
-      setInvoices((prev) => [newInv, ...prev]);
-      toast.success("Factura cargada correctamente", { icon: "🧾" });
+      try {
+        const res = await fetch("/api/invoices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const newInv = await res.json();
+        setInvoices((prev) => [newInv, ...prev]);
+        toast.success("Factura cargada correctamente", { icon: "🧾" });
+      } catch {
+        toast.error("Error al crear la factura");
+      }
     }
     setModalOpen(false);
     setEditingInvoice(null);
@@ -138,15 +145,21 @@ function InvoicesPageContent() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    setInvoices((prev) => prev.filter((inv) => inv.id !== id));
-    if (selectedId === id) setSelectedId(null);
-    toast("Factura eliminada", { icon: "🗑️" });
-  };
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/invoices/${id}`, { method: "DELETE" });
+      setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      toast("Factura eliminada", { icon: "🗑️" });
+    } catch {
+      toast.error("Error al eliminar la factura");
+    }
+  }, [selectedId]);
+
+  if (loading) return <PageLoader variant="table" />;
 
   return (
     <div className="animate-fade-in space-y-6">
-      {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-sm text-neutral-400">
         <FileText className="h-4 w-4" />
         <span>FlowForge</span>
@@ -154,7 +167,6 @@ function InvoicesPageContent() {
         <span className="text-neutral-700">Facturas</span>
       </nav>
 
-      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-heading text-3xl font-bold text-neutral-900">
@@ -192,7 +204,6 @@ function InvoicesPageContent() {
         </button>
       </div>
 
-      {/* Filters */}
       <InvoiceFilters
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -203,7 +214,6 @@ function InvoicesPageContent() {
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
       />
 
-      {/* Table */}
       <InvoiceTable
         invoices={filtered}
         onView={(id) => setSelectedId(id)}
@@ -211,10 +221,8 @@ function InvoicesPageContent() {
         onDelete={handleDelete}
       />
 
-      {/* Summary footer */}
       <InvoiceSummaryFooter invoices={invoices} />
 
-      {/* Modal */}
       <InvoiceModal
         isOpen={modalOpen}
         onClose={() => {
@@ -225,7 +233,6 @@ function InvoicesPageContent() {
         editing={editingInvoice}
       />
 
-      {/* Drawer */}
       <InvoiceDrawer
         invoice={selectedInvoice}
         onClose={() => setSelectedId(null)}

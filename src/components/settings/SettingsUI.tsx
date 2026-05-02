@@ -127,13 +127,15 @@ export function Toggle({
 interface SaveButtonProps {
   onClick: () => void;
   label?: string;
+  disabled?: boolean;
 }
 
-export function SaveButton({ onClick, label = "Guardar cambios" }: SaveButtonProps) {
+export function SaveButton({ onClick, label = "Guardar cambios", disabled }: SaveButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 rounded-input bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-primary-700 active:scale-[0.98]"
+      disabled={disabled}
+      className="flex items-center gap-2 rounded-input bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {label}
     </button>

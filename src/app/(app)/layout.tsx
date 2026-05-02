@@ -1,3 +1,5 @@
+"use client";
+
 import { SidebarProvider } from "@/components/layout/SidebarContext";
 import { AppShell } from "@/components/layout/AppShell";
 

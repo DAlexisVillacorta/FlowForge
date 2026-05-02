@@ -1,16 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Zap, Brain, Info, HelpCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn, getCategoryLabel } from "@/lib/utils";
-import { mockRules } from "@/lib/mock-data";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { SettingsSection, SettingsField, inputCls, selectCls } from "./SettingsUI";
 import type { ClassificationRule, TransactionCategory } from "@/lib/types";
-
-// ── Category options ──────────────────────────────────────────────────────────
 
 const ALL_CATEGORIES: TransactionCategory[] = [
   "pago_proveedor",
@@ -27,8 +24,6 @@ const ALL_CATEGORIES: TransactionCategory[] = [
   "otros",
 ];
 
-// ── Source badge ──────────────────────────────────────────────────────────────
-
 function SourceBadge({ source }: { source: ClassificationRule["source"] }) {
   if (source === "ai_generated") {
     return (
@@ -44,8 +39,6 @@ function SourceBadge({ source }: { source: ClassificationRule["source"] }) {
     </span>
   );
 }
-
-// ── Rule modal ────────────────────────────────────────────────────────────────
 
 interface RuleForm {
   pattern: string;
@@ -151,7 +144,6 @@ function RuleModal({
             </select>
           </SettingsField>
 
-          {/* Preview */}
           {form.category && (
             <div className="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2.5">
               <span className="text-xs text-neutral-500">Vista previa:</span>
@@ -178,12 +170,21 @@ function RuleModal({
   );
 }
 
-// ── ReglasTab ─────────────────────────────────────────────────────────────────
-
 export function ReglasTab() {
-  const [rules, setRules] = useState<ClassificationRule[]>(mockRules);
+  const [rules, setRules] = useState<ClassificationRule[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ClassificationRule | null>(null);
+
+  useEffect(() => {
+    fetch("/api/rules")
+      .then((r) => r.json())
+      .then((data) => {
+        setRules(data || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const openAdd = () => {
     setEditing(null);
@@ -195,35 +196,56 @@ export function ReglasTab() {
     setModalOpen(true);
   };
 
-  const handleSave = (form: RuleForm) => {
+  const handleSave = async (form: RuleForm) => {
     if (editing) {
-      setRules((prev) =>
-        prev.map((r) =>
-          r.id === editing.id ? { ...r, ...form } : r,
-        ),
-      );
-      toast.success("Regla actualizada");
+      try {
+        await fetch(`/api/rules`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editing.id, ...form }),
+        });
+        setRules((prev) =>
+          prev.map((r) =>
+            r.id === editing.id ? { ...r, ...form } : r,
+          ),
+        );
+        toast.success("Regla actualizada");
+      } catch {
+        toast.error("Error al actualizar la regla");
+      }
     } else {
-      const newRule: ClassificationRule = {
-        id: `rule-${Date.now()}`,
-        orgId: "org-1",
-        ...form,
-        source: "user_defined",
-        timesApplied: 0,
-      };
-      setRules((prev) => [...prev, newRule]);
-      toast.success("Regla agregada");
+      try {
+        const res = await fetch("/api/rules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        const newRule = await res.json();
+        setRules((prev) => [...prev, newRule]);
+        toast.success("Regla agregada");
+      } catch {
+        toast.error("Error al crear la regla");
+      }
     }
     setModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    setRules((prev) => prev.filter((r) => r.id !== id));
-    toast("Regla eliminada", { icon: "🗑️" });
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/rules?id=${id}`, { method: "DELETE" });
+      setRules((prev) => prev.filter((r) => r.id !== id));
+      toast("Regla eliminada", { icon: "🗑️" });
+    } catch {
+      toast.error("Error al eliminar la regla");
+    }
   };
 
   const aiCount = rules.filter((r) => r.source === "ai_generated").length;
   const userCount = rules.filter((r) => r.source === "user_defined").length;
+
+  if (loading) {
+    return <p className="text-sm text-neutral-400">Cargando reglas...</p>;
+  }
 
   return (
     <div className="space-y-4">
@@ -240,9 +262,7 @@ export function ReglasTab() {
           </button>
         }
       >
-        {/* Table */}
         <div className="overflow-hidden rounded-xl border border-neutral-200">
-          {/* Header */}
           <div className="hidden grid-cols-[1fr_140px_140px_80px_88px] gap-4 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 lg:grid">
             {["Patrón", "Categoría", "Origen", "Aplicada", "Acciones"].map((h) => (
               <span
@@ -254,94 +274,94 @@ export function ReglasTab() {
             ))}
           </div>
 
-          {/* Rows */}
           <div className="divide-y divide-neutral-50">
-            {rules.map((rule) => (
-              <div key={rule.id}>
-                {/* Desktop */}
-                <div className="hidden grid-cols-[1fr_140px_140px_80px_88px] items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50/60 lg:grid">
-                  <code className="truncate rounded bg-neutral-50 px-2 py-1 font-mono text-xs text-neutral-700">
-                    {rule.pattern}
-                  </code>
-                  <div>
-                    <CategoryBadge category={rule.category} size="sm" />
-                  </div>
-                  <div>
-                    <SourceBadge source={rule.source} />
-                  </div>
-                  <span className="font-mono text-sm font-semibold text-neutral-600">
-                    {rule.timesApplied}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEdit(rule)}
-                      className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
-                      title="Editar regla"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rule.id)}
-                      className={cn(
-                        "rounded-md p-1.5 transition-colors",
-                        rule.source === "ai_generated"
-                          ? "cursor-not-allowed text-neutral-200"
-                          : "text-neutral-400 hover:bg-danger-50 hover:text-danger-600",
-                      )}
-                      disabled={rule.source === "ai_generated"}
-                      title={
-                        rule.source === "ai_generated"
-                          ? "Las reglas de IA no se pueden eliminar"
-                          : "Eliminar regla"
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Mobile */}
-                <div className="flex items-start justify-between gap-3 px-4 py-3.5 lg:hidden">
-                  <div className="min-w-0 flex-1">
-                    <code className="mb-1.5 block truncate rounded bg-neutral-50 px-2 py-1 font-mono text-xs text-neutral-700">
+            {rules.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-neutral-400">No hay reglas configuradas</p>
+            ) : (
+              rules.map((rule) => (
+                <div key={rule.id}>
+                  <div className="hidden grid-cols-[1fr_140px_140px_80px_88px] items-center gap-4 px-4 py-3 transition-colors hover:bg-neutral-50/60 lg:grid">
+                    <code className="truncate rounded bg-neutral-50 px-2 py-1 font-mono text-xs text-neutral-700">
                       {rule.pattern}
                     </code>
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div>
                       <CategoryBadge category={rule.category} size="sm" />
+                    </div>
+                    <div>
                       <SourceBadge source={rule.source} />
-                      <span className="text-[11px] text-neutral-400">
-                        · {rule.timesApplied}x aplicada
-                      </span>
+                    </div>
+                    <span className="font-mono text-sm font-semibold text-neutral-600">
+                      {rule.timesApplied}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(rule)}
+                        className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                        title="Editar regla"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rule.id)}
+                        className={cn(
+                          "rounded-md p-1.5 transition-colors",
+                          rule.source === "ai_generated"
+                            ? "cursor-not-allowed text-neutral-200"
+                            : "text-neutral-400 hover:bg-danger-50 hover:text-danger-600",
+                        )}
+                        disabled={rule.source === "ai_generated"}
+                        title={
+                          rule.source === "ai_generated"
+                            ? "Las reglas de IA no se pueden eliminar"
+                            : "Eliminar regla"
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      onClick={() => openEdit(rule)}
-                      className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rule.id)}
-                      disabled={rule.source === "ai_generated"}
-                      className={cn(
-                        "rounded-md p-1.5",
-                        rule.source === "ai_generated"
-                          ? "text-neutral-200"
-                          : "text-neutral-400 hover:bg-danger-50 hover:text-danger-600",
-                      )}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+
+                  <div className="flex items-start justify-between gap-3 px-4 py-3.5 lg:hidden">
+                    <div className="min-w-0 flex-1">
+                      <code className="mb-1.5 block truncate rounded bg-neutral-50 px-2 py-1 font-mono text-xs text-neutral-700">
+                        {rule.pattern}
+                      </code>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <CategoryBadge category={rule.category} size="sm" />
+                        <SourceBadge source={rule.source} />
+                        <span className="text-[11px] text-neutral-400">
+                          · {rule.timesApplied}x aplicada
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => openEdit(rule)}
+                        className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rule.id)}
+                        disabled={rule.source === "ai_generated"}
+                        className={cn(
+                          "rounded-md p-1.5",
+                          rule.source === "ai_generated"
+                            ? "text-neutral-200"
+                            : "text-neutral-400 hover:bg-danger-50 hover:text-danger-600",
+                        )}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </SettingsSection>
 
-      {/* AI learning info */}
       <div className="rounded-xl border border-ai-200 bg-ai-50/50 p-4">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ai-100">

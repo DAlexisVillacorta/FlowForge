@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
 
   return (
-    <div className="min-h-screen bg-neutral-50 transition-colors dark:bg-neutral-900">
+    <div className="min-h-screen bg-[#F8FAFC] transition-colors dark:bg-[#0D1117]">
       {/* Sidebar fijo a la izquierda */}
       <Sidebar />
 

@@ -3,7 +3,6 @@
 @tailwind utilities;
 
 :root {
-  /* Primary — Verde azulado profundo */
   --primary-50: #F0FDFA;
   --primary-100: #CCFBF1;
   --primary-200: #99F6E4;
@@ -16,45 +15,24 @@
   --primary-900: #1A3C3A;
   --primary-950: #0D2D2B;
 
-  /* Accent — Amber */
   --accent-50: #FFFBEB;
-  --accent-100: #FEF3C7;
-  --accent-200: #FDE68A;
-  --accent-300: #FCD34D;
   --accent-400: #FBBF24;
   --accent-500: #F59E0B;
   --accent-600: #D97706;
-  --accent-700: #B45309;
-  --accent-800: #92400E;
-  --accent-900: #78350F;
-  --accent-950: #451A03;
 
-  /* AI — Violeta suave */
   --ai-50: #F5F3FF;
-  --ai-100: #EDE9FE;
-  --ai-200: #DDD6FE;
-  --ai-300: #C4B5FD;
   --ai-400: #A78BFA;
   --ai-500: #8B5CF6;
   --ai-600: #7C3AED;
-  --ai-700: #6D28D9;
-  --ai-800: #5B21B6;
-  --ai-900: #4C1D95;
-  --ai-950: #2E1065;
 
-  /* Danger */
   --danger-50: #FEF2F2;
   --danger-500: #EF4444;
   --danger-600: #DC2626;
-  --danger-700: #B91C1C;
 
-  /* Success */
   --success-50: #F0FDF4;
   --success-500: #22C55E;
   --success-600: #16A34A;
-  --success-700: #15803D;
 
-  /* Neutrals */
   --neutral-50: #F8FAFC;
   --neutral-100: #F1F5F9;
   --neutral-200: #E2E8F0;
@@ -65,28 +43,38 @@
   --neutral-700: #334155;
   --neutral-800: #1E293B;
   --neutral-900: #0F172A;
-  --neutral-950: #020617;
 
-  /* Semantic */
-  --background: var(--neutral-50);
-  --foreground: var(--neutral-900);
-  --muted: var(--neutral-100);
-  --muted-foreground: var(--neutral-500);
-  --border: var(--neutral-200);
-  --ring: var(--primary-500);
+  /* Semantic tokens — light */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
   --card: #ffffff;
-  --card-foreground: var(--neutral-900);
+  --card-foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --border: #E2E8F0;
+  --divider: #F1F5F9;
+  --ring: #0D9488;
+
+  /* Dark surfaces (used as Tailwind arbitrary values) */
+  --dark-bg: #0D1117;
+  --dark-surface: #161B27;
+  --dark-surface-2: #1C2336;
+  --dark-border: rgba(255,255,255,0.07);
+  --dark-border-strong: rgba(255,255,255,0.12);
+  --dark-divider: rgba(255,255,255,0.05);
 }
 
-/* ── Dark mode overrides ─────────────────────────────────────────────────── */
+/* ── Dark mode ──────────────────────────────────────────────────────────────── */
 .dark {
-  --background: var(--neutral-900);
-  --foreground: var(--neutral-100);
-  --card: #1e293b;      /* neutral-800 */
-  --card-foreground: var(--neutral-100);
-  --border: #334155;    /* neutral-700 */
-  --muted: #1e293b;     /* neutral-800 */
-  --muted-foreground: var(--neutral-400);
+  --background: #0D1117;
+  --foreground: #E2E8F0;
+  --card: #161B27;
+  --card-foreground: #E2E8F0;
+  --muted: #1C2336;
+  --muted-foreground: #8B9AB5;
+  --border: rgba(255,255,255,0.07);
+  --divider: rgba(255,255,255,0.05);
+  --ring: #2DD4BF;
 }
 
 @layer base {
@@ -94,109 +82,103 @@
     @apply bg-[var(--background)] text-[var(--foreground)] font-body antialiased;
   }
 
+  /* Subtle ambient glow in dark mode */
+  .dark body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 10% 0%, rgba(13,148,136,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 80%, rgba(139,92,246,0.04) 0%, transparent 60%);
+  }
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
   }
 }
 
-/* ── Scrollbar hidden utility ────────────────────────────────────────────── */
-.scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
+/* ── Reusable dark-card pattern ─────────────────────────────────────────────── */
+@layer components {
+  .card {
+    @apply rounded-card border border-neutral-200 bg-white shadow-subtle
+           dark:border-white/[0.07] dark:bg-[#161B27] dark:shadow-[0_4px_28px_rgba(0,0,0,0.4)];
+  }
+
+  .card-hover {
+    @apply card transition-shadow duration-200 hover:shadow-card
+           dark:hover:border-white/[0.12] dark:hover:shadow-[0_8px_36px_rgba(0,0,0,0.5)];
+  }
+
+  .surface-2 {
+    @apply bg-neutral-50 dark:bg-[#1C2336];
+  }
+
+  .text-primary-content {
+    @apply text-neutral-900 dark:text-slate-100;
+  }
+
+  .text-secondary-content {
+    @apply text-neutral-500 dark:text-slate-400;
+  }
+
+  .text-muted-content {
+    @apply text-neutral-400 dark:text-slate-500;
+  }
+
+  .divider {
+    @apply border-neutral-100 dark:border-white/[0.05];
+  }
+
+  .row-hover {
+    @apply hover:bg-neutral-50 dark:hover:bg-white/[0.04];
+  }
 }
 
-/* ── Scrollbar custom ────────────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+/* ── Scrollbar ───────────────────────────────────────────────────────────────── */
+.scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--neutral-300); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--neutral-400); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+* { scrollbar-width: thin; scrollbar-color: var(--neutral-300) transparent; }
 
-::-webkit-scrollbar-thumb {
-  background: var(--neutral-300);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--neutral-400);
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--neutral-300) transparent;
-}
-
-/* ── Animaciones standalone ───────────────────────────────────────────────── */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-12px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes shimmer {
-  from { transform: translateX(-100%); }
-  to   { transform: translateX(100%); }
-}
+/* ── Keyframes ───────────────────────────────────────────────────────────────── */
+@keyframes fadeIn   { from { opacity: 0; }          to { opacity: 1; } }
+@keyframes slideUp  { from { opacity: 0; transform: translateY(12px); }  to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn  { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes shimmer  { from { transform: translateX(-100%); }             to { transform: translateX(100%); } }
 
 .animate-fade-in  { animation: fadeIn  0.3s ease-out both; }
 .animate-slide-up { animation: slideUp 0.4s ease-out both; }
 .animate-slide-in { animation: slideIn 0.3s ease-out both; }
 
-/* ── Skeleton shimmer ────────────────────────────────────────────────────── */
+/* ── Skeleton ────────────────────────────────────────────────────────────────── */
 .skeleton {
   position: relative;
   overflow: hidden;
-  background-color: #E2E8F0; /* neutral-200 */
+  background-color: #E2E8F0;
 }
-
-.dark .skeleton {
-  background-color: #334155; /* neutral-700 */
-}
-
-.dark .skeleton::after {
-  background: linear-gradient(
-    90deg,
-    rgba(51,65,85,0)   0%,
-    rgba(71,85,105,0.4) 50%,
-    rgba(51,65,85,0)   100%
-  );
-}
+.dark .skeleton { background-color: #1C2336; }
 
 .skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0)   0%,
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0)    0%,
     rgba(255,255,255,0.55) 50%,
-    rgba(255,255,255,0)   100%
-  );
+    rgba(255,255,255,0)    100%);
   animation: shimmer 1.6s infinite;
 }
-
-/* ── Focus visible ───────────────────────────────────────────────────────── */
-:focus-visible {
-  @apply outline-2 outline-offset-2 outline-primary-500;
+.dark .skeleton::after {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0)   0%,
+    rgba(255,255,255,0.06) 50%,
+    rgba(255,255,255,0)   100%);
 }
 
-/* ── Selection ───────────────────────────────────────────────────────────── */
-::selection {
-  @apply bg-primary-200 text-primary-900;
-}
+/* ── Focus / Selection ───────────────────────────────────────────────────────── */
+:focus-visible { @apply outline-2 outline-offset-2 outline-primary-500; }
+::selection    { @apply bg-primary-200 text-primary-900; }
+.dark ::selection { background: rgba(13,148,136,0.35); color: #e2e8f0; }

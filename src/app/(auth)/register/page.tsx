@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
-
-// ── Animation variants ────────────────────────────────────────────────────────
+import toast from "react-hot-toast";
 
 const container = {
   hidden: {},
@@ -20,12 +20,8 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.28, type: "tween" as const } },
 };
 
-// ── Shared input class ────────────────────────────────────────────────────────
-
 const inputCls =
   "h-11 w-full rounded-input border border-neutral-200 bg-white px-3.5 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/15";
-
-// ── CUIT mask ─────────────────────────────────────────────────────────────────
 
 function applyMaskCuit(raw: string): string {
   const d = raw.replace(/\D/g, "").slice(0, 11);
@@ -33,8 +29,6 @@ function applyMaskCuit(raw: string): string {
   if (d.length <= 10) return `${d.slice(0, 2)}-${d.slice(2)}`;
   return `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}`;
 }
-
-// ── Password strength ─────────────────────────────────────────────────────────
 
 interface StrengthResult {
   score: 0 | 1 | 2 | 3;
@@ -75,8 +69,6 @@ function StrengthBar({ password }: { password: string }) {
   );
 }
 
-// ── Google icon ───────────────────────────────────────────────────────────────
-
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -100,8 +92,6 @@ function GoogleIcon() {
   );
 }
 
-// ── Divider ───────────────────────────────────────────────────────────────────
-
 function Divider() {
   return (
     <div className="flex items-center gap-3">
@@ -111,8 +101,6 @@ function Divider() {
     </div>
   );
 }
-
-// ── RegisterPage ──────────────────────────────────────────────────────────────
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -129,6 +117,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [error, setError] = useState("");
 
   const confirmMismatch =
     confirmPassword.length > 0 && password !== confirmPassword;
@@ -138,21 +127,60 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
+    setError("");
     if (!canSubmit) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    router.push("/dashboard");
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, email, password, companyName, cuit }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Error al crear la cuenta");
+        toast.error(data.error || "Error al crear la cuenta");
+        return;
+      }
+
+      toast.success("Cuenta creada exitosamente");
+
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        router.push("/login");
+      } else {
+        router.push("/dashboard");
+        router.refresh();
+      }
+    } catch {
+      setError("Error de conexión");
+      toast.error("Error de conexión");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    router.push("/dashboard");
+    try {
+      await signIn("google", { callbackUrl: "/dashboard" });
+    } catch {
+      toast.error("Error al conectar con Google");
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show">
-      {/* Logo */}
       <motion.div variants={item} className="mb-7 flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
           <Zap className="h-4 w-4 text-white" />
@@ -162,7 +190,6 @@ export default function RegisterPage() {
         </span>
       </motion.div>
 
-      {/* Heading */}
       <motion.div variants={item} className="mb-6">
         <h1 className="font-heading text-2xl font-bold text-neutral-900">
           Creá tu cuenta
@@ -172,8 +199,17 @@ export default function RegisterPage() {
         </p>
       </motion.div>
 
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 rounded-lg border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700"
+        >
+          {error}
+        </motion.div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Full name */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Nombre completo <span className="text-danger-500">*</span>
@@ -189,7 +225,6 @@ export default function RegisterPage() {
           />
         </motion.div>
 
-        {/* Email */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Email <span className="text-danger-500">*</span>
@@ -205,7 +240,6 @@ export default function RegisterPage() {
           />
         </motion.div>
 
-        {/* Password */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Contraseña <span className="text-danger-500">*</span>
@@ -236,7 +270,6 @@ export default function RegisterPage() {
           <StrengthBar password={password} />
         </motion.div>
 
-        {/* Confirm password */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Confirmar contraseña <span className="text-danger-500">*</span>
@@ -277,7 +310,6 @@ export default function RegisterPage() {
           )}
         </motion.div>
 
-        {/* Company name */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             Nombre de empresa <span className="text-danger-500">*</span>
@@ -292,7 +324,6 @@ export default function RegisterPage() {
           />
         </motion.div>
 
-        {/* CUIT */}
         <motion.div variants={item}>
           <label className="mb-1.5 block text-sm font-medium text-neutral-700">
             CUIT <span className="text-danger-500">*</span>
@@ -308,7 +339,6 @@ export default function RegisterPage() {
           <p className="mt-1 text-xs text-neutral-400">Formato: XX-XXXXXXXX-X</p>
         </motion.div>
 
-        {/* Terms */}
         <motion.div variants={item}>
           <label className="flex cursor-pointer items-start gap-2.5">
             <input
@@ -337,7 +367,6 @@ export default function RegisterPage() {
           </label>
         </motion.div>
 
-        {/* Submit */}
         <motion.div variants={item} className="space-y-2">
           <button
             type="submit"
@@ -366,12 +395,10 @@ export default function RegisterPage() {
         </motion.div>
       </form>
 
-      {/* Divider */}
       <motion.div variants={item} className="my-5">
         <Divider />
       </motion.div>
 
-      {/* Google */}
       <motion.div variants={item}>
         <button
           type="button"
@@ -388,7 +415,6 @@ export default function RegisterPage() {
         </button>
       </motion.div>
 
-      {/* Login link */}
       <motion.p
         variants={item}
         className="mt-6 text-center text-sm text-neutral-500"

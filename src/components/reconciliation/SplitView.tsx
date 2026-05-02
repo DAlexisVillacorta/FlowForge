@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CheckCircle2,
@@ -9,6 +9,8 @@ import {
   FileText,
   AlertCircle,
   Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
@@ -198,6 +200,77 @@ function PanelHeader({
   );
 }
 
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 15;
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const delta = 2;
+  const rawRange: number[] = [];
+  for (let i = 0; i < totalPages; i++) {
+    if (i === 0 || i === totalPages - 1 || (i >= page - delta && i <= page + delta)) {
+      rawRange.push(i);
+    }
+  }
+
+  const withEllipsis: (number | "…")[] = [];
+  let prev: number | null = null;
+  for (const p of rawRange) {
+    if (prev !== null && p - prev > 1) withEllipsis.push("…");
+    withEllipsis.push(p);
+    prev = p;
+  }
+
+  return (
+    <div className="mt-3 flex items-center justify-center gap-1 border-t border-neutral-100 pt-3">
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 disabled:opacity-30"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+      {withEllipsis.map((item, idx) =>
+        item === "…" ? (
+          <span key={`e${idx}`} className="px-0.5 text-xs text-neutral-400">
+            …
+          </span>
+        ) : (
+          <button
+            key={item}
+            onClick={() => onChange(item)}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md text-xs font-medium transition-colors",
+              item === page
+                ? "bg-primary-600 text-white"
+                : "text-neutral-500 hover:bg-neutral-100",
+            )}
+          >
+            {item + 1}
+          </button>
+        ),
+      )}
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page === totalPages - 1}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 disabled:opacity-30"
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ── SplitView ─────────────────────────────────────────────────────────────────
 
 interface SplitViewProps {
@@ -209,6 +282,7 @@ interface SplitViewProps {
   onSelectTx: (id: string | null) => void;
   onConfirmMatch: (matchId: string) => void;
   onRejectMatch: (matchId: string) => void;
+  onManualMatch?: () => void;
   invoiceMap: Record<string, Invoice | undefined>;
   txMap: Record<string, Transaction | undefined>;
   matchByTxId: Record<string, ReconciliationMatch | undefined>;
@@ -223,6 +297,7 @@ export function SplitView({
   onSelectTx,
   onConfirmMatch,
   onRejectMatch,
+  onManualMatch,
   invoiceMap,
   matchByTxId,
 }: SplitViewProps) {
@@ -230,17 +305,28 @@ export function SplitView({
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const rightPanelRef = useRef<HTMLDivElement>(null);
 
-  // Build SVG line inputs
-  const lineInputs: LineInput[] = suggestedMatches.map((m) => ({
-    matchId: m.id,
-    txId: m.transactionId,
-    invoiceId: m.invoiceId,
-    confidence: m.confidenceScore,
-    status: flashingMatchId === m.id ? "flashing" : "suggested",
-    isActive: selectedTxId === m.transactionId,
-  }));
+  const [txPage, setTxPage] = useState(0);
 
-  // Selected match info
+  // Reset page when the transaction list changes (search filter or confirmed match)
+  useEffect(() => { setTxPage(0); }, [pendingTxs]);
+
+  const txTotalPages = Math.ceil(pendingTxs.length / PAGE_SIZE);
+  const pagedTxs = pendingTxs.slice(txPage * PAGE_SIZE, (txPage + 1) * PAGE_SIZE);
+  const pagedTxIds = new Set(pagedTxs.map((tx) => tx.id));
+
+  // Build SVG line inputs — only for txs visible on current page
+  const lineInputs: LineInput[] = suggestedMatches
+    .filter((m) => pagedTxIds.has(m.transactionId))
+    .map((m) => ({
+      matchId: m.id,
+      txId: m.transactionId,
+      invoiceId: m.invoiceId,
+      confidence: m.confidenceScore,
+      status: flashingMatchId === m.id ? "flashing" : "suggested",
+      isActive: selectedTxId === m.transactionId,
+    }));
+
+  // Selected match info — search full list so selection survives page changes
   const selectedMatch = selectedTxId ? matchByTxId[selectedTxId] ?? null : null;
   const selectedTx = pendingTxs.find((t) => t.id === selectedTxId) ?? null;
   const selectedInvoice = selectedMatch ? (invoiceMap[selectedMatch.invoiceId] ?? null) : null;
@@ -286,7 +372,7 @@ export function SplitView({
           />
           <div className="space-y-2">
             <AnimatePresence initial={false}>
-              {pendingTxs.map((tx) => {
+              {pagedTxs.map((tx) => {
                 const match = matchByTxId[tx.id];
                 return (
                   <TxRow
@@ -308,6 +394,7 @@ export function SplitView({
               </p>
             )}
           </div>
+          <Pagination page={txPage} totalPages={txTotalPages} onChange={setTxPage} />
         </div>
 
         {/* ── Center column: connection lines + match card ── */}
@@ -326,7 +413,7 @@ export function SplitView({
               onReject={() =>
                 selectedMatch && onRejectMatch(selectedMatch.id)
               }
-              onSearchOther={() => onSelectTx(null)}
+              onSearchOther={() => onManualMatch?.()}
             />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -390,7 +477,7 @@ export function SplitView({
             icon={CheckCircle2}
           />
           <div className="space-y-2">
-            {pendingTxs.map((tx) => {
+            {pagedTxs.map((tx) => {
               const match = matchByTxId[tx.id];
               const suggestedInv = match ? invoiceMap[match.invoiceId] : null;
               return (
@@ -423,7 +510,7 @@ export function SplitView({
                           isFlashing={flashingMatchId === match.id}
                           onConfirm={() => onConfirmMatch(match.id)}
                           onReject={() => onRejectMatch(match.id)}
-                          onSearchOther={() => onSelectTx(null)}
+                          onSearchOther={() => onManualMatch?.()}
                         />
                       </motion.div>
                     )}
@@ -432,6 +519,7 @@ export function SplitView({
               );
             })}
           </div>
+          <Pagination page={txPage} totalPages={txTotalPages} onChange={setTxPage} />
         </div>
 
         {/* Invoices panel */}
