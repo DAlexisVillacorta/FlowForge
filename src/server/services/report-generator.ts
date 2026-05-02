@@ -164,7 +164,7 @@ function drawPill(
   return w;
 }
 
-function drawHorizontalRule(doc: Doc, y: number, color = COLORS.border) {
+function _drawHorizontalRule(doc: Doc, y: number, color = COLORS.border) {
   doc.strokeColor(color).lineWidth(0.5).moveTo(MARGIN_X, y).lineTo(PAGE_W - MARGIN_X, y).stroke();
 }
 

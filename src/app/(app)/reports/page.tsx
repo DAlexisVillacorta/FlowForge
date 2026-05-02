@@ -58,7 +58,6 @@ function ReportsPageContent() {
 
   const previewReport = reports.find((r) => r.id === previewId) ?? null;
 
-  const [selectedStmtId, setSelectedStmtId] = useState("");
 
   const handleGenerate = useCallback(
     async (type: ReportType, period: string, format: ReportFormat, stmtId?: string) => {

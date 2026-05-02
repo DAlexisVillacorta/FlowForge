@@ -15,8 +15,6 @@ import { ReconciliationSummary } from "@/components/reconciliation/Reconciliatio
 import { ConfirmedMatchesList } from "@/components/reconciliation/ConfirmedMatchesList";
 import { ManualMatchModal } from "@/components/reconciliation/ManualMatchModal";
 
-const INVOICE_MAP_INIT: Record<string, Invoice | undefined> = {};
-const TX_MAP_INIT: Record<string, Transaction | undefined> = {};
 
 function getAccountLabel(stmt: { bankAccount?: { bankName: string }; periodStart: Date; id: string }): string {
   const bank = stmt.bankAccount?.bankName ?? "Banco";
